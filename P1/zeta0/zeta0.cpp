@@ -1,7 +1,7 @@
 #include "zeta0.h"
 #include <math.h> //for sqrt function
 
-double zeta0(int n)
+double zeta(int n)
 {
     double S = 0.0;
 

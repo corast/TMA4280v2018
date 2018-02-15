@@ -1,10 +1,7 @@
 #include <cstdio> //printf function
 #include <string> // stoi function (string to int)
 
-#include "zeta0.cpp" 
-
-//using namespace std; //to not have to type std:: for every command
-
+#include "zeta0.h"
 
 int main(int argc, char* argv[])
 {
@@ -16,6 +13,6 @@ int main(int argc, char* argv[])
 
     int n = std::stoi(argv[1],NULL,0);
 
-    double pi = zeta0(n);
+    double pi = zeta(n);
     printf("Pi is aproximatly %f with n as %i \n", pi, n);
 }
