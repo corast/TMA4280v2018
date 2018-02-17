@@ -1,5 +1,5 @@
 #include <iostream>
-#include "mach0.cpp"
+#include "mach0.h"
 using namespace std;
 
 int main(int argc, char* argv[])
@@ -17,8 +17,8 @@ int main(int argc, char* argv[])
     int n = strtol(argv[1],NULL, 0);
 
     printf("n set as %i\n",n);
-    double arctan_1 = mach(n,1/5);
-    double arctan_2 = mach(n,1/239);
+    double arctan_1 = mach(n, (double)1/5);
+    double arctan_2 = mach(n, (double)1/239);
     double pi = 4*(4*arctan_1 - arctan_2);
     
     printf("Pi is aproximatly %f with %i itterations", pi, n);
