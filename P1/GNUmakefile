@@ -1,40 +1,30 @@
-TARGET=main.cpp
-#MSK=$(MAKE) -C
+NAME = Gnu
 LIBS= -lm
 CXX= g++
 #Use version c++11 to compile, for functions like printf etc.
-CXXFLAGS= -std=c+11 -Wall
-
-test = $@
-
-.PHONY: default all clean 
-all: 
-	$(foreach dir, $(DIRS), $(MAKE) -C $(dir))
+CXXFLAGS= -std=c++11 -Wall
 
 #every directory with one project in each
 DIRS = $(shell find ./ -maxdepth 1 -type d -name "[a-z]*" | tr "./" " " )
-#store the object files from corresponding .c files.
-
 #Find every object file in the subdirectories for every subtask
 find_objects = $(patsubst %.cpp, %.o, $(wildcard $(dir)/*.cpp))
 OBJECTS_T = $(foreach dir, $(DIRS), $(find_objects))
 
-#Store the header files.
-find_headers = $(wildcard $(dir)/*.h)
-HEADERS = $(foreach dir, $(DIRS), $(find_headers))
+#find every target to clean
+find_target = $(shell find -maxdepth 1 -name "main" | tr "./" " " )
+
+OBJECTS_ZETA0 = $(patsubst %.cpp, %.o, $(wildcard zeta0/*.cpp))
 
 %.o: %.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+zeta0/main.cpp: $(OBJECTS_ZETA0)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$< 100
 
-$(TARGET): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -Wall $(LIBS) -o $@
-	$@ 100
-
-#Clean rules
-clean:
-	rm -f *.o
-	rm -f $(TARGET)
+clean: #clean all folders of object files.
+	rm -rf $(OBJECTS_T)
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE
 print-%: ; @echo $*=$($*)
+
