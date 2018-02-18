@@ -1,40 +1,31 @@
-TARGET=main.cpp
-#MSK=$(MAKE) -C
+NAME:=GNUMakefile
 LIBS= -lm
 CXX= g++
 #Use version c++11 to compile, for functions like printf etc.
-CXXFLAGS= -std=c+11 -Wall
+CXXFLAGS= -std=c++11
 
-test = $@
-
-.PHONY: default all clean 
-all: 
-	$(foreach dir, $(DIRS), $(MAKE) -C $(dir))
-
-#every directory with one project in each
-DIRS = $(shell find ./ -maxdepth 1 -type d -name "[a-z]*" | tr "./" " " )
-#store the object files from corresponding .c files.
-
+#every directory with one project in each, ignore .directories
+DIRS := $(shell find ./ -maxdepth 1 -type d -name "[a-z]*" | tr "./" " " )
 #Find every object file in the subdirectories for every subtask
 find_objects = $(patsubst %.cpp, %.o, $(wildcard $(dir)/*.cpp))
-OBJECTS_T = $(foreach dir, $(DIRS), $(find_objects))
+OBJECTS = $(foreach dir, $(DIRS), $(find_objects))
 
-#Store the header files.
-find_headers = $(wildcard $(dir)/*.h)
-HEADERS = $(foreach dir, $(DIRS), $(find_headers))
+all: zeta0/main mach0/main
 
-%.o: %.cpp $(HEADERS)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+zeta0/main: $(patsubst %.cpp, %.o, $(wildcard zeta0/*.cpp))
+	$(CXX) $(CXXFLAGS) $< -o $@
 
+zeta0/main.cpp: $(patsubst %.cpp, %.o, $(wildcard zeta0/*.cpp))
+	$(CXX) $(CXXFLAGS) $< -o $@
 
-$(TARGET): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -Wall $(LIBS) -o $@
-	$@ 100
+mach0/main: $(patsubst %.cpp, %.o, $(wildcard mach0/*.cpp))
+	$(CXX) $(CXXFLAGS) $< -o $@
 
-#Clean rules
-clean:
-	rm -f *.o
-	rm -f $(TARGET)
+veryclean:
+	$(RM) zeta0/main mach0/main
+
+clean: #clean all folders of object files.
+	rm -rf $(OBJECTS)
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE
 print-%: ; @echo $*=$($*)

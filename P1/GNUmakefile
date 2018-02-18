@@ -27,4 +27,3 @@ clean: #clean all folders of object files.
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE
 print-%: ; @echo $*=$($*)
-
