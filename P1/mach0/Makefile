@@ -1,4 +1,4 @@
-NAME=zeta0/Makefile #For debugging purposes
+NAME=mach0/Makefile #For debugging purposes
 CEXE:=.cpp
 SRC:=$(wildcard *$(CEXE)) #Collect all .cpp files.
 
@@ -32,7 +32,7 @@ LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))
 all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
 #Copmile the utestzeta0 program. (don't know a better way to do this)
-	$(CXX) $(CXXFLAGS) -o utestzeta0 utestzeta0.o $(LIB)
+	$(CXX) $(CXXFLAGS) -o utestmach0 utestmach0.o $(LIB)
 
 #Try running the compiled target file with an parameter
 run:

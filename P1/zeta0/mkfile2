@@ -1,0 +1,25 @@
+NAME=zeta0/Makefile #For debugging purposes
+
+CXX:=g++
+#Use version c++11 to compile, for functionality like printf etc.
+CXXFLAGS:= -std=c++11
+
+all: main zeta0 utestzeta0
+
+main: main.cpp zeta0.o utestzeta0.o
+	$(CXX) $(CXXFLAGS) -c main.cpp zeta0.o utestzeta0.o -o main -lm
+
+zeta0.o: zeta0.h zeta0.cpp
+	$(CXX) $(CXXFLAGS) -c zeta0.cpp -o zeta0.o -lm 
+
+utestzeta0.o: utestzeta0.cpp
+	$(CXX) $(CXXFLAGS) -c utestzeta0.cpp -o utestzeta0.o -lm
+
+run:
+	./main 100
+
+utest:
+	./utestzeta0
+
+clean:
+	$(RM) *.o main
