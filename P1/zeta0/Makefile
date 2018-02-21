@@ -1,12 +1,14 @@
-NAME=zeta0/Makefile
-SRC:=$(wildcard *.cpp)
+NAME=zeta0/Makefile #For debugging purposes
+
+SRC:=$(wildcard *.cpp) #Collect all .cpp files.
+
 OBJ:=$(patsubst %.cpp,%.o, $(SRC))
-MAINSRC=main.cpp
-#our target is a file called main
+MAINSRC:=main.cpp
+#our target is a file called main, remove .cpp extention to MAINSRC
 TARGET:=$(patsubst %.cpp,%,$(MAINSRC))
-CXX=g++
-#Use version c++11 to compile, for functions like printf etc.
-CXXFLAGS= -std=c++11 -Wall
+CXX:=g++
+#Use version c++11 to compile, for functionality like printf etc.
+CXXFLAGS:= -std=c++11 -Wall
 
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
 MAINOBJ=$(patsubst %.c,%.o,$(MAINSRC))
