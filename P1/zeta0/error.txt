@@ -1,0 +1,16 @@
+For n = 2		Error: 0.402980
+For n = 4		Error: 0.218980
+For n = 8		Error: 0.114295
+For n = 16		Error: 0.058400
+For n = 32		Error: 0.029519
+For n = 64		Error: 0.014840
+For n = 128		Error: 0.007440
+For n = 256		Error: 0.003725
+For n = 512		Error: 0.001864
+For n = 1024		Error: 0.000932
+For n = 2048		Error: 0.000466
+For n = 4096		Error: 0.000233
+For n = 8192		Error: 0.000117
+For n = 16384		Error: 0.000058
+For n = 32768		Error: 0.000029
+For n = 65536		Error: inf

@@ -19,35 +19,28 @@ CXXFLAGS:= -std=c++11
 MAINOBJ=$(patsubst %$(CEXE),%.o,$(MAINSRC))
 LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))
 
-@echo =====MAKING$@=====;
-
 .PHONY: all clean
 
 %.o:%.cpp
 	$(CXX) $(CXXFLAGS) -c $<
-
-#$(TARGET): $(OBJS)
-#	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
 #Copmile the utestzeta0 program. (don't know a better way to do this)
 	$(CXX) $(CXXFLAGS) -o utestmach0 utestmach0.o $(LIB)
 
+$(LIB): $(LIBOBJ)
+	@ar r $@ $(LIBOBJ)
+
 #Try running the compiled target file with an parameter
 run:
 	./$(TARGET) 100
 
 utest:
-	./utestzeta0
-#include $(OBJ:.o=.d)
-
-$(LIB): $(LIBOBJ)
-	@ar r $@ $(LIBOBJ)
+	./utestmach0
 
 clean:
-	$(RM) $(TARGET) $(OBJS)
-	#rm -f *.o 
+	$(RM) $(TARGET) $(OBJS) utestmach0
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE
 print-%: ; @echo $*=$($*)

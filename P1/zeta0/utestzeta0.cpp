@@ -18,12 +18,10 @@ void unitTest(){
     double pi = zeta(3);
     double calculatedPi = 2.857738;
 
-    printf("Pi calculated is %f, pi computed is %f",calculatedPi,pi);
+    //printf("Pi calculated is %f, pi computed is %f\n",calculatedPi,pi);
 
     //check if these are the same
-    int tmp = pi * 6;
-    double pi_2 = tmp/6.0;//3.¤¤¤¤¤¤
-    double difference = std::abs(pi_2 - calculatedPi);
-    printf("Difference is %f\n",difference);
-    assert(difference < 0.001);
+    double difference = std::abs(pi - calculatedPi);
+    assert(difference < 0.00001);
+    printf("unit test PASSED\n");
 }

@@ -6,7 +6,7 @@ int main(int argc, char* argv[])
 {
     //check if we got one argument
     if(argc < 1){
-        printf("Please type one number n");
+        printf("Please type one number n\n");
         return 1;
     }
     /*else if(argc >= 2){
@@ -20,5 +20,5 @@ int main(int argc, char* argv[])
 
     double pi = mach(3);
     
-    printf("Pi is aproximatly %f with %i itterations", pi, n);
+    printf("Pi is aproximatly %f with %i itterations\n", pi, n);
 }

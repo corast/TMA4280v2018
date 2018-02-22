@@ -4,6 +4,7 @@
 #include <cmath>
 #include "mach0.h"
 #include <cassert>
+#include <string>
 
 void unitTest();
 
@@ -15,10 +16,10 @@ int main(int argc, char* argv[]){
 void unitTest(){
 
     double pi = mach(3);
-    double computedPi = 2.857738;
+    double computedPi = 3.141621;
     //check if these are the same
-    int tmp = pi * 6;
-    double pi_2 = tmp/6.0;//3.¤¤¤¤¤¤
-    double difference = std::abs(pi_2 - computedPi);
-    assert(difference < 0.001);
+    //printf("pi = %f, cpi = %f",pi,computedPi);
+    double difference = std::abs(pi - computedPi);
+    assert(difference < 0.00001);
+    printf("unit test PASSED\n");    
 }
