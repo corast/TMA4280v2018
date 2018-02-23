@@ -28,6 +28,7 @@ all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
 #Copmile the utestzeta0 program. (don't know a better way to do this)
 	$(CXX) $(CXXFLAGS) -o utestmach0 utestmach0.o $(LIB)
+	$(CXX) $(CXXFLAGS) -o vtestmach0 vtestmach0.o $(LIB)
 
 $(LIB): $(LIBOBJ)
 	@ar r $@ $(LIBOBJ)
@@ -39,8 +40,11 @@ run:
 utest:
 	./utestmach0
 
+vtest:
+	./vtestmach0
+
 clean:
-	$(RM) $(TARGET) $(OBJS) utestmach0
+	$(RM) $(TARGET) $(OBJS) utestmach0 vtestmach0
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE
 print-%: ; @echo $*=$($*)
