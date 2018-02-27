@@ -3,6 +3,7 @@
 //#include <cassert>
 #include <string> //for printf
 #include <fstream> //for file handing: creation, opening, writing etc.
+#include <iomanip>
 
 int validTest();
 //double can relibly hold 15 decimal places.
@@ -26,14 +27,14 @@ int validTest(){
     //calculate error for each k, and vertify that it converges to 0 towards k=24.
     for(int k = 1; k<=24;k++){
         n = pow(2,k);
-        pi = zeta(n);
-        error = std::abs(PI-pi);
+        pi = zeta(n); //calculate pi
+        error = std::abs(PI-pi); //calculate error between calculate and costant pi.
         std::string line;
-        line = "For n = " + std::to_string(n) + "\t\tError: " + std::to_string(error) + "\n";
+        //line = "For n = " + std::to_string(n) + "\t\tError: " + std::to_string(error) + "\n";
 
-        myfile.width(20);
-        myfile << line;
-        if(error > error_old && k != 1){
+        //output to file.
+        myfile << "For n = " << std::setw(10) << n << "\t\t Error: " << error << std::endl;
+        if(error > error_old && k != 1){ //check if our new error, is better than the old value, or else we are not converging.
             //means we are not convering to a better value than before, we can stop test
             printf("not convering to pi!\n");
             printf("error:%f , error_old:%f\n",error, error_old);

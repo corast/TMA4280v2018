@@ -30,10 +30,8 @@ int validTest(){
         n = 1 << k; //binary bitshit to the right, 2 bits.
         pi = mach(n);
         error = std::abs(PI-pi);
-        std::string line;
-        myfile << std::setprecision(10) << "for n = "<< n << "\t\tError: " << error << std::endl;
-        //line = "For n = " +std::to_string(n) + "\t\tError: " + std::to_string(error) + "\n";
-        //myfile << line;
+        
+        myfile << "For n = " << std::setw(10) << n << "\t\t Error: " << error << std::endl;
         if(error > error_old && k != 1){
             //means we are not convering to a better value than before, we can stop test
             printf("not convering to pi!\n");
