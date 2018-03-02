@@ -14,6 +14,7 @@ double mach(int start, int n, int myid){
 }
 
 double arctan(int start, int n, double x, int myid){
+    printf("Process %d calculate interval: [%d , %d]\n",myid, start, start+n-1);
     double S = 0.0;
     for (int i = start; i < n+start; i++){
         double V = pow((-1),i-1);
