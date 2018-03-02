@@ -1,4 +1,4 @@
-NAME=zeta1/Makefile #For debugging purposes
+NAME=mach1/Makefile #For debugging purposes
 CEXE:=.cpp
 MPI=mpirun
 

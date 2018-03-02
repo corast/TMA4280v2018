@@ -3,6 +3,6 @@
 #ifndef ZETA1_H_
 #define ZETA1_H_
 //=====================================
-void zeta(int s_val, int n, double *pnt_array);
+double zeta(int start, int n, int myid);
 
 #endif // ZETA1_H_ 

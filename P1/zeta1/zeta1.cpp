@@ -1,12 +1,12 @@
 #include "zeta1.h"
 #include <math.h> //for pow function.
+#include <cstdio>
 
-/*  Distributed calculation of vi, where each v value, is to be stored on an array in memory
-    n is the number of elements this process should calculate*/
-
-void zeta(int s_val, int n, double *ptr_array){ //We require an pointer to an array, and 
-    //compute the partial sum of zeta given n.
-    for(int i = s_val; i < n+s_val; i++){
-        *(ptr_array) = 1/pow((double)i, 2); //Take the value from the array positon and calculate v_i. 
+double zeta(int start, int n, int myid){ 
+    double S = 0.0;
+    printf("Process %d calculate interval: [%d , %d]\n",myid, start, start+n-1);
+    for(int i = start; i < n+start; i++){//each process will do an equal amout of itterations.
+        S += 1.0/pow(i,2);
     }
+    return S;
 }
