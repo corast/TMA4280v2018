@@ -8,6 +8,7 @@
 #include "zeta1.h"
 
 double mpi_zeta();
+std::tuple<int, int> calculate_work();
 
 //Global variables
 int numprocs, n;
@@ -48,30 +49,30 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-double mpi_zeta(){
-    int divide = (double)n/numprocs; //compute the minimum amount of work for each process. 
-    double sum = 0.0;
-    int rest_tasks = n%numprocs;
-    if(rest_tasks != 0){ //If we can't cleanly divide the number of tasks between the processes
-        //We need to check how many extra tasks there are.
-        //We simply need to give rest_task processes an extra amout of work to complete
-        int tasks = n; //We divide this out to the tasks.
-
-        if(rest_tasks > myid){ //we want the tasks with id higher than the work to do the extra task.
-            int start = myid*divide + myid + 1;
-            int n = divide + 1;
-            sum = zeta(start, n, myid); //each process calculate it's sum.
-        }else
-        {   //We need to shift the work intervals by the rest_tasks.
-            int start = myid*divide + 1 + rest_tasks;
-            int n = divide;
-            sum = zeta(start, n, myid); //each process calculate it's sum.
+/* Return how many tasks a given process should do, an attept at load balancing */
+std::tuple<int, int> calculate_work(){
+    int division = n/numprocs;
+    int remainder = n%numprocs;
+    int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
+    int m = division; //minimum amount of work for each process.
+    if(remainder != 0){
+        if(remainder > myid){//We just give the first remainder processes one extra task.
+            m += 1; //add one extra task.
+            start += myid; //We need to shift start position by myid.
+            return std::make_tuple(start, m);
+        }else{
+            start += remainder; //We need to shift start position by remainder.
+            return std::make_tuple(start, m);
         }
-    }else{//it divides cleanly between processes.
-        
-        sum = zeta(myid*divide + 1, divide, myid); //each process calculate it's sum.
+    }else{//we can divide tasks cleanly
+        return std::make_tuple(start, m);
     }
+}
 
+double mpi_zeta(){
+    auto work = calculate_work();
+
+    double sum = zeta(std::get<0>(work),std::get<1>(work), myid);
     double sum_all = 0.0;
 
     MPI_Reduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.

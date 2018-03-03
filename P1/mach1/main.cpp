@@ -2,21 +2,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-
+#include <tuple> //For returning multple variables from an function, could use an array too.
 #include <mpi.h>
 
 #include "mach1.h"
-
+ 
+/* Function decleration */
 double mpi_mach();
+std::tuple<int, int> calculate_work();
 
-//Global variables
+/* Global variables */
 int numprocs, n;
 int myid;
 double time_start;
 double *pnt_array;
-
-int *global_i;
-int li[2];
 
 int main(int argc, char* argv[])
 {   
@@ -42,7 +41,6 @@ int main(int argc, char* argv[])
     
     if(myid == 0){ //We are master.
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-        pnt_array = (double*) calloc(n,sizeof(double));
         //initialize this array with the elements that we want to share between the processes.
        /* for(int i=0; i<n; i++){
             //++pnt_array;
@@ -62,52 +60,46 @@ int main(int argc, char* argv[])
     MPI_Finalize();
     return 0;
 }
+/* Return how many tasks a given process should do */
+std::tuple<int, int> calculate_work(){
+    int division = n/numprocs;
+    int remainder = n%numprocs;
+    int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
+    int m = division; //minimum amount of work for each process.
+    if(remainder != 0){
+        if(remainder > myid){//We just give the first remainder processes one extra task.
+            m += 1; //add one extra task.
+            start += myid; //We need to shift start position by myid.
+            return std::make_tuple(start, m);
+        }else{
+            start += remainder; //We need to shift start position by remainder.
+            return std::make_tuple(start, m);
+        }
+    }else{//we can divide tasks cleanly
+        return std::make_tuple(start, m);
+    }
+}//std::get<0>(tuple_name) for element 0.
 
 double mpi_mach(){
+    //MPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuff, recvcount, recvtype, 0, MPI_COOM_WORLD);
 
-    MPI_Scatter(global_i, 2, MPI_INT, li, 2 ,MPI_INT, 0, MPI_COMM_WORLD);
-    /*
-    double arctans[2]; //an array that holds arctan1 and arctan2.
-    
-    int divide = (double)n/numprocs; //compute the minimum amount of work for each process.
-    int rest_tasks = n%numprocs;
-    if(rest_tasks != 0){ //If we can't cleanly divide the number of tasks between the processes
-        //We need to check how many extra tasks there are.
-        //We simply need to give rest_task processes an extra amout of work to complete
-        int tasks = n; //We divide this out to the tasks.
+    double arctans[2]; //each process should store their corresponding calculation in this array.
 
-        if(rest_tasks > myid){ //we want the tasks with id higher than the work to do the extra task.
-            int start = myid*divide + myid + 1;
-            int n = divide + 1;
-            arctans[0] = arctan(start, n,1/8 , myid); //each process calculate it's sum.
-            arctans[1] = arctan(start, n,1/256, myid);
-        }else
-        {   //We need to shift the work intervals by the rest_tasks.
-            int start = myid*divide + 1 + rest_tasks;
-            int n = divide;
-            arctans[0] = arctan(start, n,1/8, myid); //each process calculate it's sum.
-            arctans[1] = arctan(start, n,1/256, myid);
-        }
-    }else{//it divides cleanly between processes.
-        
-        arctans[0] = arctan(myid*divide + 1, divide,1/8, myid); //each process calculate it's sum.
-        arctans[1] = arctan(myid*divide + 1, divide,1/256, myid); //each process calculate it's sum.
-    }
-    */
+    auto work = calculate_work(); //calculate work-load for this process.
 
- 
+    //Do the work
+    arctans[0] = arctan(std::get<0>(work),std::get<1>(work),(double)1/5, myid);
+    arctans[1] = arctan(std::get<0>(work),std::get<1>(work),(double)1/239, myid);
 
-    //MPI_Reduce(&sum, &sum_all, 2 , MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
+    double arctans_all[2]; //Hold the final sum
+    //MPI_Reduce on the adresses of arctans and arctans_all
+    MPI_Reduce(arctans,arctans_all, 2,MPI_DOUBLE, MPI_SUM, 0 , MPI_COMM_WORLD);
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
-        //double arctan_1 = arctans[0];
-        //double arctan_2 = arctans[1];
-        
-        //double pi = 4*(4*arctan_1 - arctan_2);
-        double pi = 1;
+        double pi = 4*(4*arctans_all[0] - arctans_all[1]);
         double error = fabs(pi - 4.0 * atan(1.0));
-        free(pnt_array);
-        printf("pi = %e, error=%e, duration=%e ms\n",pi, error, duration*1000);
+        printf("pi = %.15g, error=%e, duration=%f ms\n", pi, error, duration*1000);
+        //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
 }
