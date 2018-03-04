@@ -7,9 +7,10 @@
 
 int validTest();
 //double can relibly hold 15 decimal places.
-const double PI = 3.141592653589793;
-
+//const double PI = 3.141592653589793;
+const double PI = 4.0 * atan(1.0);
 int main(int argc, char* argv[]){
+    
     if(!validTest()){
         printf("Validation PASSED\n");
     }

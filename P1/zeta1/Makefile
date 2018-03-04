@@ -40,11 +40,8 @@ $(LIB): $(LIBOBJ)
 test: #we run with 4 process, since i only have 4 cores.
 	$(MPI) -np 8 $(TARGET) 100
 
-utest:
-	./utestzeta0
-
-vtest:
-	./vtestzeta0	
+atest: #run with: make NP="" N="" atest
+	$(MPI) -np $(NP) $(TARGET) $(N)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0

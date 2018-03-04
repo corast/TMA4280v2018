@@ -37,14 +37,11 @@ $(LIB): $(LIBOBJ)
 	@ar r $@ $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
-test: #we run with 4 process, since i only have 4 cores.
-	$(MPI) -np 8 $(TARGET) 100
+test: #we run with default 4 processes
+	$(MPI) -np 4 $(TARGET) 100
 
-utest:
-	./utestzeta0
-
-vtest:
-	./vtestzeta0	
+atest: #to run make NP="4" N="100" atest
+	$(MPI) -np $(NP) $(TARGET) $(N)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0

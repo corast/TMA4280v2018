@@ -34,7 +34,7 @@ $(LIB): $(LIBOBJ)
 	@ar r $@ $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
-run:
+test:
 	./$(TARGET) 100
 
 utest:

@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
 
     printf("n set as %i\n",n);
 
-    double pi = mach(3);
+    double pi = mach(n);
     
     printf("Pi is aproximatly %f with %i itterations\n", pi, n);
 }

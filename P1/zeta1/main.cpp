@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
 
     //Check if the number of processes are not a power of 2.(1,2,..,2^n)
-    if( (numprocs & (numprocs - 1)) != 0) { 
+    if( (numprocs & (numprocs - 1)) != 0 && numprocs) { 
         printf("Number of processes are not a number of 2\n");
         MPI_Finalize();
         return 0;
@@ -51,6 +51,14 @@ int main(int argc, char* argv[])
 
 /* Return how many tasks a given process should do, an attept at load balancing */
 std::tuple<int, int> calculate_work(){
+      if(numprocs > n){//special case we need to handle, if there are more processes than tasks
+        //e.g n=4 and np=8. the first 4 processes should get one task each, the rest 0.
+        if(n > myid){ 
+            return std::make_tuple(myid+1,1); //one task for first n processes.
+        }else{
+            return std::make_tuple(0,0);//no work to be done
+        }
+    }
     int division = n/numprocs;
     int remainder = n%numprocs;
     int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.

@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
 
     //Check if the number of processes are not a power of 2.(1,2,..,2^n)
-    if( (numprocs & (numprocs - 1)) != 0) { 
+    if( (numprocs & (numprocs - 1)) != 0 && numprocs) { 
         printf("Number of processes are not a number of 2\n");
         MPI_Finalize();
         return 0;
@@ -62,6 +62,15 @@ int main(int argc, char* argv[])
 }
 /* Return how many tasks a given process should do */
 std::tuple<int, int> calculate_work(){
+     if(numprocs > n){//special case we need to handle, if there are more processes than tasks
+        //e.g n=4 and np=8. the first 4 processes should get one task each, the rest 0.
+        if(n > myid){ 
+            return std::make_tuple(myid+1,1); //one task for first n processes.
+        }else{
+            return std::make_tuple(0,0);//no work to be done
+        }
+    }
+
     int division = n/numprocs;
     int remainder = n%numprocs;
     int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
@@ -93,13 +102,13 @@ double mpi_mach(){
 
     double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
-    MPI_Reduce(arctans,arctans_all, 2,MPI_DOUBLE, MPI_SUM, 0 , MPI_COMM_WORLD);
+    MPI_Reduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, 0 , MPI_COMM_WORLD);
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
         double pi = 4*(4*arctans_all[0] - arctans_all[1]);
-        double error = fabs(pi - 4.0 * atan(1.0));
-        printf("pi = %.15g, error=%e, duration=%f ms\n", pi, error, duration*1000);
+        double error = std::abs(pi - (4.0 * atan(1.0)));
+        printf("cpi =%.15g pi = %.15g, error=%e, duration=%f ms\n", 4.0 * atan(1.0),pi, error, duration*1000);
         //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
 }
