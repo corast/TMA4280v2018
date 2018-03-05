@@ -2,31 +2,33 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <tuple> //For returning multple variables from an function, could use an array too.
+
 #include <mpi.h>
-
 #include "mach1.h"
- 
-/* Function decleration */
-double mpi_mach();
-std::tuple<int, int> calculate_work();
+#include "zeta1.h"
 
-/* Global variables */
-int numprocs, n;
+void mpi_zeta();
+void mpi_mach();
+std::tuple<int, int> calculate_work();
+void recursive_doubling(void *recvbuf);
+
+//Global variables
+int numprocs, n, method, type;
 int myid;
 double time_start;
-double *pnt_array;
 
 int main(int argc, char* argv[])
 {   
     MPI_Status status;
-
-    if(argc != 2){
-        std::printf("Please type one number n as argument to this program and\n");
+    //We need to pass more arguments.
+    if(argc != 4){
+        std::printf("Please type number of iteration, method of computation(0 = zeta, 1 = mach) and type of summation(0 = MPI_Allreduce, 1 = recursive-doubling) \n");
         return 1;
     }
-    n = std::stoi(argv[1]);
-
+    n = std::stoi(argv[1]);//Number of itterations.
+    method = std::stoi(argv[2]); //What method of computation we use, zeta or mach.
+    type = std::stoi(argv[3]); //What type of summation we use, allreduce or recursive-doubling sum.
+    
     MPI_Init(&argc, &argv); //init MPI
 
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
@@ -38,31 +40,35 @@ int main(int argc, char* argv[])
         MPI_Finalize();
         return 0;
     }
-    
+
     if(myid == 0){ //We are master.
+        std::string m[2] = {"zeta","mach"};
+        std::string t[2] = {"Allreduce","Recursive-doubling"};
+        std::cout << "Using method "<< m[method] << " with summation type " << t[type] << std::endl;
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-        //initialize this array with the elements that we want to share between the processes.
-       /* for(int i=0; i<n; i++){
-            //++pnt_array;
-            printf("setting %f to %d\n",*pnt_array, i+1);
-            *(pnt_array+i) = (double)i+1; //set the value of this index as 
-        }
-        for(int i = 0; i<n; i++){
-            printf("%f ",*(pnt_array+i));
-        }printf("\n");
-        */
-    }else{ //We are a slave
-        ; //nothing to do
     }
 
-    mpi_mach();
+    switch(method){
+        case 0:{
+            mpi_zeta();
+        }break;
+
+        case 1:{
+            mpi_mach();
+        }break;
+
+        default: {
+            
+        }
+    }
 
     MPI_Finalize();
     return 0;
 }
-/* Return how many tasks a given process should do */
+
+/* Return how many tasks a given process should do, an attept at load balancing */
 std::tuple<int, int> calculate_work(){
-     if(numprocs > n){//special case we need to handle, if there are more processes than tasks
+      if(numprocs > n){//special case we need to handle, if there are more processes than tasks
         //e.g n=4 and np=8. the first 4 processes should get one task each, the rest 0.
         if(n > myid){ 
             return std::make_tuple(myid+1,1); //one task for first n processes.
@@ -70,7 +76,6 @@ std::tuple<int, int> calculate_work(){
             return std::make_tuple(0,0);//no work to be done
         }
     }
-
     int division = n/numprocs;
     int remainder = n%numprocs;
     int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
@@ -87,14 +92,33 @@ std::tuple<int, int> calculate_work(){
     }else{//we can divide tasks cleanly
         return std::make_tuple(start, m);
     }
-}//std::get<0>(tuple_name) for element 0.
+}
 
-double mpi_mach(){
-    //MPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuff, recvcount, recvtype, 0, MPI_COOM_WORLD);
+void mpi_zeta(){
+    auto work = calculate_work();
 
+    double sum = zeta(std::get<0>(work),std::get<1>(work), myid);
+    double sum_all = 0.0;
+    
+    if(!type){//If we want all_reduce
+        MPI_Allreduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
+    }else{
+        recursive_doubling(&sum_all); //Where we want the final sum to be stored.
+    }
+
+    if(myid == 0){//process zero should do the final calculation.
+        double duration  = MPI_Wtime() - time_start;
+        double pi = sqrt(sum_all*6); 
+        double error = fabs(pi - 4.0 * atan(1.0));
+        printf("pi = %e, error=%e, duration=%e ms\n",pi, error, duration*1000);
+    }
+}
+
+void mpi_mach(){
     double arctans[2]; //each process should store their corresponding calculation in this array.
 
     auto work = calculate_work(); //calculate work-load for this process.
+
     int start = std::get<0>(work);
     int m = std::get<1>(work);
     int end_interval = m == 0 ? 0 : start+m-1; //correctly label the end_interval in printout for processes with no work.
@@ -104,15 +128,28 @@ double mpi_mach(){
     arctans[0] = arctan(start,m,(double)1/5, myid);
     arctans[1] = arctan(start,m,(double)1/239, myid);
 
+    //Do the work
+    arctans[0] = arctan(std::get<0>(work),std::get<1>(work),(double)1/5, myid);
+    arctans[1] = arctan(std::get<0>(work),std::get<1>(work),(double)1/239, myid);
+
     double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
-    MPI_Reduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, 0 , MPI_COMM_WORLD);
+    if(!type){
+        MPI_Allreduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    }else{
+        recursive_doubling(arctans_all); //Where we want the final sum to be stored.
+    }
+    
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
         double pi = 4*(4*arctans_all[0] - arctans_all[1]);
         double error = std::abs(pi - (4.0 * atan(1.0)));
-        printf("cpi =%.15g pi = %.15g, error=%e, duration=%f ms\n", 4.0 * atan(1.0),pi, error, duration*1000);
+        printf("pi=%.15g, error=%e, duration=%f ms\n",pi, error, duration*1000);
         //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
+}
+
+void recursive_doubling(void *recvbuf){
+    //How does this work?
 }
