@@ -44,7 +44,7 @@ atest: #to run make NP="4" N="100" atest
 	$(MPI) -np $(NP) $(TARGET) $(N)
 
 clean:
-	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0
+	$(RM) $(TARGET) $(OBJS)
 	#rm -f *.o 
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE

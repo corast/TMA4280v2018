@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     
     if(myid == 0){ //We are master.
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-        //initialize this array with the elements that we want to share between the processes.
+        //initialize this array with the elements that we want to share between the processes, if this is the way to go.
        /* for(int i=0; i<n; i++){
             //++pnt_array;
             printf("setting %f to %d\n",*pnt_array, i+1);
@@ -98,12 +98,12 @@ double mpi_mach(){
     int start = std::get<0>(work);
     int m = std::get<1>(work);
     int end_interval = m == 0 ? 0 : start+m-1; //correctly label the end_interval in printout for processes with no work.
-    printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
+    //printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
 
     //Do the work
     arctans[0] = arctan(start,m,(double)1/5, myid);
     arctans[1] = arctan(start,m,(double)1/239, myid);
-
+    printf("Process %d interval [%d,%d] calculated arctan_1/5 %.16f, arctan_1/239 %.16f\n", myid, start, end_interval, arctans[0], arctans[1]);
     double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
     MPI_Reduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, 0 , MPI_COMM_WORLD);
@@ -112,7 +112,7 @@ double mpi_mach(){
         double duration  = MPI_Wtime() - time_start;
         double pi = 4*(4*arctans_all[0] - arctans_all[1]);
         double error = std::abs(pi - (4.0 * atan(1.0)));
-        printf("cpi =%.15g pi = %.15g, error=%e, duration=%f ms\n", 4.0 * atan(1.0),pi, error, duration*1000);
+        printf("cpi =%.16g pi = %.16g, error=%.16g, duration=%f ms\n", 4.0 * atan(1.0),pi, error, duration*1000);
         //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
 }

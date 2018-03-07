@@ -79,8 +79,13 @@ std::tuple<int, int> calculate_work(){
 
 double mpi_zeta(){
     auto work = calculate_work();
+    int start = std::get<0>(work);
+    int m = std::get<1>(work);
+    int end_interval = n == 0 ? 0 : start+n-1; //correctly label the end_interval in printout.
 
     double sum = zeta(std::get<0>(work),std::get<1>(work), myid);
+    
+    printf("Process %d calculate interval: [%d, %d] psum: %.16f\n", myid, start, end_interval, sum);
     double sum_all = 0.0;
 
     MPI_Reduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
@@ -89,6 +94,6 @@ double mpi_zeta(){
         double duration  = MPI_Wtime() - time_start;
         double pi = sqrt(sum_all*6); 
         double error = fabs(pi - 4.0 * atan(1.0));
-        printf("pi = %e, error=%e, duration=%e ms\n",pi, error, duration*1000);
+        printf("pi = %.16f, error=%.16f, duration=%e ms\n",pi, error, duration*1000);
     }
 }

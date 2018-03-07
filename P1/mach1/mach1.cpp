@@ -10,5 +10,6 @@ double arctan(int start, int n, double x, int myid){
         double V3 = pow(x,V2);
         S += V*(V3/V2);
     }
+    //printf("process %i S= %d",);
     return S;
 }
