@@ -10,7 +10,7 @@
 void mpi_zeta();
 void mpi_mach();
 std::tuple<int, int> calculate_work();
-void recursive_doubling(void *recvbuf);
+void recursive_doubling(void *,void *);
 
 //Global variables
 int numprocs, n, method, type;
@@ -96,15 +96,20 @@ std::tuple<int, int> calculate_work(){
 
 void mpi_zeta(){
     auto work = calculate_work();
+    int start = std::get<0>(work);
+    int n = std::get<1>(work);
+    int end_interval = n == 0 ? 0 : start+n-1; //correctly label the end_interval in printout.
 
-    double sum = zeta(std::get<0>(work),std::get<1>(work), myid);
+    double sum = zeta(start, n);
+    //printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
     double sum_all = 0.0;
     
     if(!type){//If we want all_reduce
         MPI_Allreduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
     }else{
-        recursive_doubling(&sum_all); //Where we want the final sum to be stored.
+        recursive_doubling(&sum,&sum_all); //Where we want the final sum to be stored.
     }
+  
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
@@ -122,22 +127,19 @@ void mpi_mach(){
     int start = std::get<0>(work);
     int m = std::get<1>(work);
     int end_interval = m == 0 ? 0 : start+m-1; //correctly label the end_interval in printout for processes with no work.
+
+
+    //Do the work
+    arctans[0] = arctan(start, m, (double)1/5);
+    arctans[1] = arctan(start, m, (double)1/239);
     printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
-
-    //Do the work
-    arctans[0] = arctan(start,m,(double)1/5, myid);
-    arctans[1] = arctan(start,m,(double)1/239, myid);
-
-    //Do the work
-    arctans[0] = arctan(std::get<0>(work),std::get<1>(work),(double)1/5, myid);
-    arctans[1] = arctan(std::get<0>(work),std::get<1>(work),(double)1/239, myid);
 
     double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
     if(!type){
         MPI_Allreduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     }else{
-        recursive_doubling(arctans_all); //Where we want the final sum to be stored.
+        recursive_doubling(arctans,arctans_all); //Where we want the final sum to be stored.
     }
     
 
@@ -150,6 +152,74 @@ void mpi_mach(){
     }
 }
 
-void recursive_doubling(void *recvbuf){
+bool turnToSend(int distance, int x){
+    //to generate the sequece of processes to send this turn
+    // 2x*(distance to reciever process)
+    //We need to calculate the values, and check if its equal to our process, if its higher we return false.
+    /*
+       x = 0      1, 3, 5, 7, 9, 11, ... (2*i + 1)
+       x = 1      2, 6, 10, 14, 18, ... (2*2*i + 2)
+       x = 2      4, 12, 20, ... (2*2*2*i + 4)
+    */ 
+    int proc = 0;
+    for(int i = 0; i<numprocs; i++){ 
+        proc = (pow(2,x+1)*i)+distance; //Sequence is (2^x)*i+distance
+        if(myid == 4){
+            printf("itteration=%d i=%d proc=%d distance=%d :  %d\n",x,i,proc,distance, 2*i+distance);
+        }
+        if(proc == myid ){//We are one of the senders this turn
+            return true;
+        }else if(proc > myid){//we are not one of the senders.
+            return false;
+        }
+    }  
+}
+
+void recursive_doubling(void *psum,void *recvbuf){
+    MPI_Status status;
+
+    //Recursive doubling: ech process pass on the sum and calculate a partial sum from this. First all processes send their sum once, 
+    /*
+        IF we have 8 processes. Everyone process hold a partial sum and pass on the value. 
+        P0<-P1 P2<-P3 P4<-P5 P6<-P7
+        P0<----P2     P4<----P7
+        P0<-----------P4
+        We can now calculate pi on P0 with the final sum.
+    */
+    for(int i = 0; i < log(numprocs); i++){
+        //Every odd numbered process need to send to its -1 process
+
+        //Very uneffective test
+        /*int ps = numprocs/pow(2,i+1);
+        int array[ps]; */
+
+        int distance = (int)pow(2,i); //This is the distance between who is sending and who is receiving.
+        
+        if(turnToSend(distance,i)){
+            printf("i %d, process %d to send to %d, distance %d \n", i, myid, myid-distance, distance);
+            if(method){//if we come from zeta
+                MPI_Send(&psum,1,MPI_DOUBLE, myid-distance,0,MPI_COMM_WORLD);
+            }else{
+                //MPI_Sendrecv(&psum,1, )
+            }
+            
+        }
+
+        /*
+        //now we need to figure out if we are a sender or a reciever.
+        if(i+distance == myid){
+            printf("i %d, sender:%d\n",i , (int)pow(2,i));
+        }
+        if( (myid-distance)%2 == 0 && i == 0){ //This apply only for the first itteration.
+            //First itteration this work.
+        }else{
+            //distance is a number of 2 from here on out.
+            if(myid%distance == 0){
+                //then we need to send.
+            }
+
+        }*/
+    }
+    //We need to write the sum
     //How does this work?
 }

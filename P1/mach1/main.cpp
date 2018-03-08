@@ -101,8 +101,8 @@ double mpi_mach(){
     //printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
 
     //Do the work
-    arctans[0] = arctan(start,m,(double)1/5, myid);
-    arctans[1] = arctan(start,m,(double)1/239, myid);
+    arctans[0] = arctan(start,m,(double)1/5);
+    arctans[1] = arctan(start,m,(double)1/239);
     printf("Process %d interval [%d,%d] calculated arctan_1/5 %.16f, arctan_1/239 %.16f\n", myid, start, end_interval, arctans[0], arctans[1]);
     double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
