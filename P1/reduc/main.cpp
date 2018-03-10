@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <bitset>
 
 #include <mpi.h>
 #include "mach1.h"
@@ -10,7 +11,7 @@
 void mpi_zeta();
 void mpi_mach();
 std::tuple<int, int> calculate_work();
-void recursive_doubling(void *,void *);
+void recursive_doubling(int *,int *);
 
 //Global variables
 int numprocs, n, method, type;
@@ -58,7 +59,7 @@ int main(int argc, char* argv[])
         }break;
 
         default: {
-            
+            std::count << "Error, no  more methods to choice from" << std::endl;
         }
     }
 
@@ -152,7 +153,7 @@ void mpi_mach(){
     }
 }
 
-bool turnToSend(int distance, int x){
+bool turnToSend(int distance, int x){//for ALL-TO-ONE sum computing (Recursive halving)
     //to generate the sequece of processes to send this turn
     // 2x*(distance to reciever process)
     //We need to calculate the values, and check if its equal to our process, if its higher we return false.
@@ -160,6 +161,7 @@ bool turnToSend(int distance, int x){
        x = 0      1, 3, 5, 7, 9, 11, ... (2*i + 1)
        x = 1      2, 6, 10, 14, 18, ... (2*2*i + 2)
        x = 2      4, 12, 20, ... (2*2*2*i + 4)
+       ect
     */ 
     int proc = 0;
     for(int i = 0; i<numprocs; i++){ 
@@ -175,50 +177,62 @@ bool turnToSend(int distance, int x){
     }  
 }
 
-void recursive_doubling(void *psum,void *recvbuf){
+bool forwarSendDirection(int i){
+    /* Return whether or not a given process should MPI_sendrecv forward the given distance or not   
+    */
+    //We need to create an mask corresponding to itteration, to check a given bit.
+    int mask = 1;
+    if(i != 0){
+        mask << i;//we need to shift our mask by i bits. mask*2^î 
+    }
+    
+    int sendDir = mask ^ myid; //xor the mask with myid.
+
+    //if the bit position corresponding to the mask is set, we need to send the sum a given distance.
+    std::bitset<sizeof(int)> bit (sendDir);
+    //if bit nr i has value 1 we should send forward.
+    if(bit.test(i)){
+        return true;    
+    }//else we need to send backwards.
+    return false;
+}
+
+void recursive_doubling(int *psum, int *recvbuf){
     MPI_Status status;
 
     //Recursive doubling: ech process pass on the sum and calculate a partial sum from this. First all processes send their sum once, 
     /*
         IF we have 8 processes. Everyone process hold a partial sum and pass on the value. 
-        P0<-P1 P2<-P3 P4<-P5 P6<-P7
-        P0<----P2     P4<----P7
-        P0<-----------P4
-        We can now calculate pi on P0 with the final sum.
-    */
-    for(int i = 0; i < log(numprocs); i++){
-        //Every odd numbered process need to send to its -1 process
+        P0<->P1 P2<->P3 P4<->P5 P6<->P7
+        P0<->P2 P1<->P3 P4<->P6 P5<->P7
+        P0<->P4 P1<->P5 P2<->P6 P3<->P7
 
-        //Very uneffective test
-        /*int ps = numprocs/pow(2,i+1);
-        int array[ps]; */
+        #Ather this exchante og sums, every process should process should be able to compute pi.
+        MPI_Sendrecv(sendbuffer, sendcount, Datatype, sendtype, destination, sendtag, receivbuffer, recievcount, Datatype, source , recvtag, comm );
+    */
+
+    for(int i = 0; i < log(numprocs); i++){
 
         int distance = (int)pow(2,i); //This is the distance between who is sending and who is receiving.
-        
-        if(turnToSend(distance,i)){
-            printf("i %d, process %d to send to %d, distance %d \n", i, myid, myid-distance, distance);
-            if(method){//if we come from zeta
-                MPI_Send(&psum,1,MPI_DOUBLE, myid-distance,0,MPI_COMM_WORLD);
-            }else{
-                //MPI_Sendrecv(&psum,1, )
-            }
-            
-        }
 
-        /*
-        //now we need to figure out if we are a sender or a reciever.
-        if(i+distance == myid){
-            printf("i %d, sender:%d\n",i , (int)pow(2,i));
-        }
-        if( (myid-distance)%2 == 0 && i == 0){ //This apply only for the first itteration.
-            //First itteration this work.
+        int sendId = myid;
+
+        if(forwarSendDirection(i)){
+            sendId += distance; //send distance forward 
         }else{
-            //distance is a number of 2 from here on out.
-            if(myid%distance == 0){
-                //then we need to send.
-            }
-
-        }*/
+            sendId -= distance; //send diastance backward
+        }
+         //printf("i %d, process %d to send to %d, distance %d \n", i, myid, myid-distance, distance);
+        if(method){//if we come from zeta
+            MPI_Sendrecv(&psum, 1, MPI_INT, 0, sendId, &recvbuf, 1, MPI_INT, myid, 0, MPI_COMM_WORLD, &status);
+            //After we have sent and recieved we add to the sum
+            *psum += *recvbuf;
+        }
+        else{//mach
+            //MPI_Sendrecv(&psum,1, )
+        }
+        
+           
     }
     //We need to write the sum
     //How does this work?
