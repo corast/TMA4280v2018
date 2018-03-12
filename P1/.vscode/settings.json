@@ -41,6 +41,7 @@
         "cwctype": "cpp",
         "fstream": "cpp",
         "sstream": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "bitset": "cpp"
     }
 }
