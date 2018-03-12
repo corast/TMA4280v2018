@@ -6,6 +6,7 @@
         "type_traits": "cpp",
         "cmath": "cpp",
         "bitset": "cpp",
-        "new": "cpp"
+        "new": "cpp",
+        "typeinfo": "cpp"
     }
 }
