@@ -4,9 +4,11 @@
 #include <cmath>
 #include <ctime>
 #include <iostream>
+#include <tuple>
+
 #include "zeta2.h"
 
-void zeta();
+void mp_zeta(int n, int threads);
 std::tuple<int, int> calculate_work();
 
 void recursive_doubling_mach(double *,double *);
@@ -26,7 +28,7 @@ int main(int argc, char* argv[])
     }
     n = std::stoi(argv[1]);//Number of itterations.
     threads = std::stoi(argv[2]);//Number of threads
-
+    printf("Running with %d threads on %d tasks\n",threads,n);
     /*method = std::stoi(argv[2]); //What method of computation we use, zeta or mach.
     type = std::stoi(argv[3]); //What type of summation we use, allreduce or recursive-doubling sum.
     
@@ -45,7 +47,7 @@ int main(int argc, char* argv[])
     
     start = std::clock();
     //MPI_Finalize();
-    zeta();
+    mp_zeta(n, threads);
     return 0;
 }
 
@@ -77,9 +79,9 @@ std::tuple<int, int> calculate_work(){
     }
 }
 
-void zeta(){
-    double sum = zeta(n, threads);
+void mp_zeta(int n,int threads){
     double duration  = ( std::clock() - start ) / (double)CLOCKS_PER_SEC;
+    double sum  = zeta(n,threads);
     double pi = sqrt(sum*6);
     double error = fabs(pi - 4.0 * atan(1.0));
     printf("pi = %e, error=%e, duration=%e ms\n",pi, error, duration*1000);
