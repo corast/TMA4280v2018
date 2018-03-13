@@ -1,9 +1,8 @@
 //=====================================
 //include guard
-#ifndef MACH1_H_
-#define MACH1_H_
+#ifndef ZETA2_H_
+#define ZETA2_H_
 //=====================================
+double zeta(int n, int threads);
 
-double arctan(int start, int n, double x);
-
-#endif // MACH1_H_ 
+#endif // ZETA1_H_ 
