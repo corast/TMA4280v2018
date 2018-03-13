@@ -95,5 +95,8 @@ double mpi_zeta(){
         double pi = sqrt(sum_all*6); 
         double error = fabs(pi - 4.0 * atan(1.0));
         printf("pi = %.16f, error=%.16f, duration=%e ms\n",pi, error, duration*1000);
+
+        //Write the result to file, for plotting later on.
+        
     }
 }
