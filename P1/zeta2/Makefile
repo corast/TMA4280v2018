@@ -15,7 +15,7 @@ LIB=libutils.a #library file containing all the compiled libraries dependensies.
 
 CXX:=g++
 #Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
-CXXFLAGS:= -std=c++11 -fopenmp
+CXXFLAGS:= -std=c++11 -fopenmp -Wall
 
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
 MAINOBJ=$(patsubst %$(CEXE),%.o,$(MAINSRC))# target object file.
@@ -41,7 +41,7 @@ atest: #run with: make atest N: num of tasks, T: num of threads.
 	 ./$(TARGET) $(N) $(T)
 
 clean:
-	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0
+	$(RM) $(TARGET) $(OBJS)
 	#rm -f *.o 
 
 #For debugging makefile, simply 'make print-VARIABLE' to check content of VARIABLE

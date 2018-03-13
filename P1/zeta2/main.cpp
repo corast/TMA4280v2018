@@ -5,6 +5,7 @@
 #include <ctime>
 #include <iostream>
 #include <tuple>
+#include <omp.h>
 
 #include "zeta2.h"
 
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
         return 0;
     } */
 
-    
+    zeta(n, threads);
     start = std::clock();
     //MPI_Finalize();
     mp_zeta(n, threads);
@@ -81,6 +82,7 @@ std::tuple<int, int> calculate_work(){
 
 void mp_zeta(int n,int threads){
     double duration  = ( std::clock() - start ) / (double)CLOCKS_PER_SEC;
+    printf("Testing\n");
     double sum  = zeta(n,threads);
     double pi = sqrt(sum*6);
     double error = fabs(pi - 4.0 * atan(1.0));
