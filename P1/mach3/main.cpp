@@ -5,19 +5,17 @@
 #include <ctime>
 #include <bitset>
 #include <tuple>
-//#include <mpi.h>
+#include <mpi.h>
 
 #include "mach2.h"
 
 void mpi_mach();
 std::tuple<int, int> calculate_work();
-void recursive_doubling_mach(double *,double *);
 
 //Global variables
-int numprocs, n, method, type, threads;
+int numprocs, n, threads;
 int myid = -1; 
 double time_start;
-std::clock_t start_time;
 
 int main(int argc, char* argv[])
 {   
@@ -28,10 +26,8 @@ int main(int argc, char* argv[])
         return 1;
     }
     n = std::stoi(argv[1]);//Number of itterations.
-    threads = std::stoi(argv[2]);
-    //method = std::stoi(argv[2]); //What method of computation we use, zeta or mach.
-    //type = std::stoi(argv[3]); //What type of summation we use, allreduce or recursive-doubling sum.
-    /*
+    threads = std::stoi(argv[2]);//Number of threads.
+
     MPI_Init(&argc, &argv); //init MPI
 
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
@@ -43,34 +39,13 @@ int main(int argc, char* argv[])
         MPI_Finalize();
         return 0;
     }
-    */
-    /*
+    
     if(myid == 0){ //We are master.
-        std::string m[2] = {"zeta","mach"};
-        std::string t[2] = {"Allreduce","Recursive-doubling"};
-        std::cout << "Using method "<< m[method] << " with summation type " << t[type] << std::endl;
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     }
 
-    switch(method){
-        case 0:{
-            mpi_zeta();
-        }break;
-
-        case 1:{
-            mpi_mach();
-        }break;
-
-        default: {
-            std::cout << "Error, no  more methods to choice from" << std::endl;
-        }
-    }
-
-    MPI_Finalize();
-
-    */
-
     mpi_mach();
+    MPI_Finalize();
     return 0;
 }
 
@@ -114,28 +89,22 @@ void mpi_mach(){
     int m = std::get<1>(work);
     //int end_interval = m == 0 ? 0 : start+m-1; //correctly label the end_interval in printout for processes with no work.
     //printf("Working interval [%d, %d] \n", start, end_interval);
-    start_time = std::clock();
     //Do the work
     arctans[0] = arctan(start, m, (double)1/5, threads);
     arctans[1] = arctan(start, m, (double)1/239, threads);
     //printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
 
-    //double arctans_all[2]; //Hold the final sum
+    double arctans_all[2]; //Hold the final sum
     //MPI_Reduce on the adresses of arctans and arctans_all
-    /*if(!type){
-        MPI_Allreduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    }else{
-        recursive_doubling_mach(arctans,arctans_all); //Where we want the final sum to be stored.
-    }*/
-    //printf("%f\n",arctans[0] + arctans[1]);
-    //printf("Process %d has tan0 %f, tan1 %f\n",myid, arctans_all[0],arctans_all[1]);
+    MPI_Allreduce(arctans,arctans_all, 2 ,MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
 
     if(myid == 0 || myid == -1){//process zero should do the final calculation.
-        //double duration  = MPI_Wtime() - time_start;
-        double duration  = ( std::clock() - start_time ) / (double)CLOCKS_PER_SEC;
+        double duration  = MPI_Wtime() - time_start;
+        //double duration  = ( std::clock() - start_time ) / (double)CLOCKS_PER_SEC;
         double pi = 4*(4*arctans[0] - arctans[1]);
         double error = std::abs(pi - (4.0 * atan(1.0)));
-        printf("pi=%.15f, error=%.15f, duration=%f ms\n",pi, error, duration*1000);
+        printf("Threads=%d pi=%.15f, error=%.15f, duration=%f ms\n",threads ,pi, error, duration*1000);
         //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
 }

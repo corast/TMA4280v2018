@@ -13,7 +13,7 @@ TARGET:=main
 #$(patsubst %$(CEXE),%,$(MAINSRC))
 LIB=libutils.a #library file containing all the compiled libraries dependensies.
 
-CXX:=g++
+CXX:=mpicxx
 #Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
 CXXFLAGS:= -std=c++11 -fopenmp -Wall
 
@@ -35,10 +35,10 @@ $(LIB): $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
 test: #we run with 4 process, since i only have 4 cores.
-	./$(TARGET) 100 4
+	$(MPI) -np 4 $(TARGET) 100 4
 
 atest: #run with: make atest NP="" N="" M="" T="" # M: "0"=zeta, "1"=mach ; T:"0"=Allreduce, "1"=recursive-doubling.
-	./$(TARGET) $(N) $(T)
+	$(MPI) -np $(NP) $(TARGET) $(N) $(T)
 
 mtest:
 	./$(TARGET) $(N) 1
