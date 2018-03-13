@@ -5,6 +5,7 @@
 #include <ctime>
 #include <iostream>
 #include <tuple>
+#include <omp.h>
 
 #include "zeta2.h"
 
@@ -44,6 +45,11 @@ int main(int argc, char* argv[])
         return 0;
     } */
 
+    /*
+    //omp_set_num_threads(4);
+    #pragma omp parallel num_threads(4)
+    printf("Hello (%d) worlds\n", omp_get_thread_num());
+    */        
     
     start = std::clock();
     //MPI_Finalize();

@@ -15,8 +15,7 @@ LIB=libutils.a #library file containing all the compiled libraries dependensies.
 
 CXX:=g++
 #Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
-CXXFLAGS:= -std=c++11 -fopenmp
-
+CXXFLAGS:= -std=c++11 -fopenmp -Wall
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
 MAINOBJ=$(patsubst %$(CEXE),%.o,$(MAINSRC))# target object file.
 LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))# all object file dependant on the library file
@@ -31,7 +30,7 @@ all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
 
 $(LIB): $(LIBOBJ)
-	@ar r $@ $(LIBOBJ)
+	@ar r $@ $(LIBOBJ) 
 
 #Try running the compiled target file with an parameter
 test: #we run with 4 process, since i only have 4 cores.
