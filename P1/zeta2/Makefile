@@ -1,4 +1,4 @@
-NAME=reduc/Makefile #For debugging purposes
+lsNAME=reduc/Makefile #For debugging purposes
 CEXE:=.cpp
 MPI=mpirun
 
