@@ -38,10 +38,16 @@ $(LIB): $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
 test: #we run with 4 process, since i only have 4 cores.
-	$(MPI) -np 8 $(TARGET) 100
+	@$(MPI) -np 8 $(TARGET) 100
 
 atest: #run with: make NP="" N="" atest
-	$(MPI) -np $(NP) $(TARGET) $(N)
+	@$(MPI) -np $(NP) $(TARGET) $(N)
+
+testm:
+	@$(MPI) -np $(NP) $(TARGET) 8
+	@$(MPI) -np $(NP) $(TARGET) 16
+	@$(MPI) -np $(NP) $(TARGET) 128
+	@$(MPI) -np $(NP) $(TARGET) 256
 
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0

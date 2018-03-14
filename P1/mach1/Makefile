@@ -44,11 +44,10 @@ atest: #to run make NP="4" N="100" atest
 	$(MPI) -np $(NP) $(TARGET) $(N)
 
 testm: #to run make NP="4" N="100" atest
-	@$(MPI) -np $(NP) $(TARGET) $(N)
-	@$(MPI) -np $(NP) $(TARGET) $(N)
-	@$(MPI) -np $(NP) $(TARGET) $(N)
-	@$(MPI) -np $(NP) $(TARGET) $(N)
-	
+	@$(MPI) -np $(NP) $(TARGET) 8
+	@$(MPI) -np $(NP) $(TARGET) 16
+	@$(MPI) -np $(NP) $(TARGET) 128
+	@$(MPI) -np $(NP) $(TARGET) 256
 
 clean:
 	$(RM) $(TARGET) $(OBJS)

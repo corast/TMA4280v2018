@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     if(myid == 0){ //We are master.
         std::string m[2] = {"zeta","mach"};
         std::string t[2] = {"Allreduce","Recursive-doubling"};
-        std::cout << "Using method "<< m[method] << " with summation type " << t[type] << std::endl;
+        //std::cout << "Using method "<< m[method] << " with summation type " << t[type] << std::endl;
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     }
 
@@ -105,20 +105,18 @@ void mpi_zeta(){
     double sum = zeta(start, n);
     //printf("Process %d calculate interval: [%d , %d]\n",myid, start, end_interval);
     double sum_all = 0.0;
-    
+
     if(!type){//If we want all_reduce
         MPI_Allreduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
     }else{
         recursive_doubling_zeta(&sum, &sum_all); //Where we want the final sum to be stored.
     }
-    
-    printf("Process %d has sum %f\n",myid, sum);
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
         double pi = sqrt(sum_all*6); 
         double error = fabs(pi - 4.0 * atan(1.0));
-        printf("pi = %e, error=%e, duration=%e ms\n",pi, error, duration*1000);
+        printf("pi = %.17f, error=%.17f, duration=%f ms\n", pi, error, duration*1000);
     }
 }
 
@@ -150,7 +148,7 @@ void mpi_mach(){
         double duration  = MPI_Wtime() - time_start;
         double pi = 4*(4*arctans_all[0] - arctans_all[1]);
         double error = std::abs(pi - (4.0 * atan(1.0)));
-        printf("pi=%.15g, error=%e, duration=%f ms\n",pi, error, duration*1000);
+        printf("pi=%.15g, error=%.15f, duration=%f ms\n",pi, error, duration*1000);
         //std::cout <<"pi = "<< pi <<", error= "<< error <<", duration= " << duration*1000 <<" ms" <<std::endl;
     }
 }
@@ -169,9 +167,6 @@ bool turnToSend(int distance, int x){//for ALL-TO-ONE sum computing (Recursive h
     int proc = 0;
     for(int i = 0; i<numprocs; i++){ 
         proc = (pow(2,x+1)*i)+distance; //Sequence is (2^x)*i+distance
-        if(myid == 4){
-            printf("itteration=%d i=%d proc=%d distance=%d :  %d\n",x,i,proc,distance, 2*i+distance);
-        }
         if(proc == myid ){//We are one of the senders this turn
             return true;
         }else if(proc > myid){//we are not one of the senders.
@@ -210,13 +205,10 @@ void recursive_doubling_zeta(double *psum, double *sum_all){
         MPI_Sendrecv(sendbuffer, sendcount, Datatype, destination, sendtag, receivbuffer, recievcount, Datatype, source , recvtag, comm );
     */
     MPI_Status status;
-
-    if(myid == 0){
-        printf("My partial sum before is: %f\n",*psum);
-    }    
+   
     double recbuff = 0.0; //Local reciev buffer
     double sum = 0.0; //Local sum
-    for(int i = 0; i < log(numprocs); i++){
+    for(int i = 0; i < log2(numprocs); i++){
 
         int distance = (int)pow(2,i); //This is the distance between who is sending and who is receiving.
         if(myid == 0){
@@ -231,7 +223,8 @@ void recursive_doubling_zeta(double *psum, double *sum_all){
         }
 
         sum = *psum;
-            //printf("process %d to send %f to process %d at i=%d\n", myid, *psum, sendId, i);
+            //For debugging purposes
+        //printf("process %d to send %f to process %d at i=%d\n", myid, *psum, sendId, i);
         MPI_Send(&sum, 1, MPI_DOUBLE, sendId, 0, MPI_COMM_WORLD);
             //double recievBuffer = 0;
         MPI_Recv(&recbuff, 1, MPI_DOUBLE, sendId, 0, MPI_COMM_WORLD, &status);
@@ -260,7 +253,7 @@ void recursive_doubling_mach(double *arctans, double *arctans_all){
    
     double recbuff[2] = {0,0}; //Local reciev buffer
     double sum[2] = {arctans[0],arctans[1]}; //Local sum
-    for(int i = 0; i < log(numprocs); i++){
+    for(int i = 0; i < log2(numprocs); i++){
         int distance = (int)pow(2,i); //This is the distance between who is sending and who is receiving.
         if(myid == 0){
             //printf("Distance %d at i = %d\n",distance,i);

@@ -40,6 +40,10 @@ test: #we run with 4 process, since i only have 4 cores.
 atest: #run with: make atest NP="" N="" M="" T="" # M: "0"=zeta, "1"=mach ; T:"0"=Allreduce, "1"=recursive-doubling.
 	$(MPI) -np $(NP) $(TARGET) $(N) $(M) $(T)
 
+testm: #our small scale study, we want to check the different results based on number of processes for the two reduce methods.
+	@$(MPI) -np $(NP) $(TARGET) $(N) $(M) 0
+	@$(MPI) -np $(NP) $(TARGET) $(N) $(M) 1
+
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0
 	#rm -f *.o 

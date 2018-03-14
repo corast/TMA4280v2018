@@ -16,10 +16,6 @@ LIB=libutils.a #library file containing all the compiled libraries dependensies.
 CXX:=g++
 #Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
 CXXFLAGS:= -std=c++11 -fopenmp -Wall
-<<<<<<< HEAD
-=======
-
->>>>>>> bf84f160e56e857a05d4f480ef2598c1b78c06f2
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
 MAINOBJ=$(patsubst %$(CEXE),%.o,$(MAINSRC))# target object file.
 LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))# all object file dependant on the library file
@@ -43,18 +39,18 @@ test: #we run with 4 process, since i only have 4 cores.
 atest: #run with: make atest N: num of tasks, T: num of threads.
 	 ./$(TARGET) $(N) $(T)
 
-mtest:
-	./$(TARGET) $(N) 1
-	./$(TARGET) $(N) 2
-	./$(TARGET) $(N) 3
-	./$(TARGET) $(N) 4
-	./$(TARGET) $(N) 5
-	./$(TARGET) $(N) 6
-	./$(TARGET) $(N) 7
-	./$(TARGET) $(N) 8
-	./$(TARGET) $(N) 16
-	./$(TARGET) $(N) 32
-	./$(TARGET) $(N) 64
+mtest: 
+	@./$(TARGET) 1000000 1
+	@./$(TARGET) 1000000 2
+	@./$(TARGET) 1000000 3
+	@./$(TARGET) 1000000 4
+	@./$(TARGET) 1000000 5
+	@./$(TARGET) 1000000 6
+	@./$(TARGET) 1000000 7
+	@./$(TARGET) 1000000 8
+	@./$(TARGET) 1000000 16
+	@./$(TARGET) 1000000 32
+	@./$(TARGET) 1000000 64
 clean:
 	$(RM) $(TARGET) $(OBJS)
 	#rm -f *.o 

@@ -29,6 +29,7 @@ int main(int argc, char* argv[])
     }
     n = std::stoi(argv[1]);//Number of itterations.
     threads = std::stoi(argv[2]);
+    printf("Running with %d threads on %d tasks\n",threads,n);
     //method = std::stoi(argv[2]); //What method of computation we use, zeta or mach.
     //type = std::stoi(argv[3]); //What type of summation we use, allreduce or recursive-doubling sum.
     /*

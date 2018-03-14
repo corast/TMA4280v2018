@@ -40,18 +40,18 @@ test: #we run with 4 process, since i only have 4 cores.
 atest: #run with: make atest NP="" N="" M="" T="" # M: "0"=zeta, "1"=mach ; T:"0"=Allreduce, "1"=recursive-doubling.
 	./$(TARGET) $(N) $(T)
 
-mtest:
-	./$(TARGET) $(N) 1
-	./$(TARGET) $(N) 2
-	./$(TARGET) $(N) 3
-	./$(TARGET) $(N) 4
-	./$(TARGET) $(N) 5
-	./$(TARGET) $(N) 6
-	./$(TARGET) $(N) 7
-	./$(TARGET) $(N) 8
-	./$(TARGET) $(N) 16
-	./$(TARGET) $(N) 32
-	./$(TARGET) $(N) 64
+testm:
+	@./$(TARGET) 1000000 1
+	@./$(TARGET) 1000000 2
+	@./$(TARGET) 1000000 3
+	@./$(TARGET) 1000000 4
+	@./$(TARGET) 1000000 5
+	@./$(TARGET) 1000000 6
+	@./$(TARGET) 1000000 7
+	@./$(TARGET) 1000000 8
+	@./$(TARGET) 1000000 16
+	@./$(TARGET) 1000000 32
+	@./$(TARGET) 1000000 64
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
