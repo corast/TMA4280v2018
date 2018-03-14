@@ -41,6 +41,7 @@ int main(int argc, char* argv[])
     }   
 
     if(myid == 0){
+        printf("Running with %d processes and %d threads on each\n",numprocs,threads);
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     }     
     
@@ -93,7 +94,7 @@ void mpi_zeta(){
     
     MPI_Allreduce(&sum, &sum_all, 1 , MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); //we sum the sum variable from each process and store in pi.
     
-    printf("Process %d has sum %f\n",myid, sum);
+    //printf("Process %d has sum %f\n",myid, sum);
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;

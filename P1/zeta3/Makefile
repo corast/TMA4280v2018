@@ -34,23 +34,20 @@ $(LIB): $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
 test: #we run with 4 process, since i only have 4 cores.
-	$(MPI) -np 4 $(TARGET) 100 1 0
+	$(MPI) -np 4 $(TARGET) 100 1
 
 atest: #run with: make atest N: num of tasks, T: num of threads.
 	$(MPI) -np $(NP) $(TARGET) $(N) $(T)
 
-mtest:
-	./$(TARGET) $(N) 1
-	./$(TARGET) $(N) 2
-	./$(TARGET) $(N) 3
-	./$(TARGET) $(N) 4
-	./$(TARGET) $(N) 5
-	./$(TARGET) $(N) 6
-	./$(TARGET) $(N) 7
-	./$(TARGET) $(N) 8
-	./$(TARGET) $(N) 16
-	./$(TARGET) $(N) 32
-	./$(TARGET) $(N) 64
+testm:
+	@$(MPI) -np $(NP) $(TARGET) $(N) 1
+	@$(MPI) -np $(NP) $(TARGET) $(N) 2
+	@$(MPI) -np $(NP) $(TARGET) $(N) 3
+	@$(MPI) -np $(NP) $(TARGET) $(N) 4
+	@$(MPI) -np $(NP) $(TARGET) $(N) 8
+	@$(MPI) -np $(NP) $(TARGET) $(N) 16
+	@$(MPI) -np $(NP) $(TARGET) $(N) 32
+
 clean:
 	$(RM) $(TARGET) $(OBJS)
 	#rm -f *.o 
