@@ -48,6 +48,7 @@ testm: #to run make NP="4" N="100" atest
 	@$(MPI) -np $(NP) $(TARGET) $(N)
 	@$(MPI) -np $(NP) $(TARGET) $(N)
 	@$(MPI) -np $(NP) $(TARGET) $(N)
+	
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
