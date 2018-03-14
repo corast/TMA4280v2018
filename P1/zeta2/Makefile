@@ -16,6 +16,10 @@ LIB=libutils.a #library file containing all the compiled libraries dependensies.
 CXX:=g++
 #Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
 CXXFLAGS:= -std=c++11 -fopenmp -Wall
+<<<<<<< HEAD
+=======
+
+>>>>>>> bf84f160e56e857a05d4f480ef2598c1b78c06f2
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
 MAINOBJ=$(patsubst %$(CEXE),%.o,$(MAINSRC))# target object file.
 LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))# all object file dependant on the library file

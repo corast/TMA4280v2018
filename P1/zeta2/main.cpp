@@ -45,6 +45,7 @@ int main(int argc, char* argv[])
         return 0;
     } */
 
+<<<<<<< HEAD
     /*
     //omp_set_num_threads(4);
     #pragma omp parallel num_threads(4)
@@ -52,6 +53,10 @@ int main(int argc, char* argv[])
     */        
     
     //start = std::clock();
+=======
+    zeta(n, threads);
+    start = std::clock();
+>>>>>>> bf84f160e56e857a05d4f480ef2598c1b78c06f2
     //MPI_Finalize();
     start = std::clock();
     mp_zeta(n, threads);
@@ -88,6 +93,11 @@ std::tuple<int, int> calculate_work(){
 }
 
 void mp_zeta(int n,int threads){
+<<<<<<< HEAD
+=======
+    double duration  = ( std::clock() - start ) / (double)CLOCKS_PER_SEC;
+    printf("Testing\n");
+>>>>>>> bf84f160e56e857a05d4f480ef2598c1b78c06f2
     double sum  = zeta(n,threads);
     double duration  = ( std::clock() - start ) / (double)CLOCKS_PER_SEC;
     double pi = sqrt(sum*6);
