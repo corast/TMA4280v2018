@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "array": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "type_traits": "cpp",
+        "cmath": "cpp",
+        "bitset": "cpp",
+        "new": "cpp"
+    }
+}

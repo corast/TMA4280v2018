@@ -1,5 +1,7 @@
-NAME=zeta0/Makefile #For debugging purposes
+NAME=zeta1/Makefile #For debugging purposes
 CEXE:=.cpp
+MPI=mpirun
+
 SRC:=$(wildcard *$(CEXE)) #Collect all .cpp files.
 
 OBJS:=$(patsubst %$(CEXE),%.o, $(SRC)) #collect all object files
@@ -11,8 +13,8 @@ TARGET:=main
 #$(patsubst %$(CEXE),%,$(MAINSRC))
 LIB=libutils.a #library file containing all the compiled libraries dependensies.
 
-CXX:=g++
-#Use version c++11 to compile, for functionality like printf etc.
+CXX:=mpicxx
+#Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
 CXXFLAGS:= -std=c++11
 
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
@@ -28,22 +30,24 @@ LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))# all object file dependant on the library
 all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
 #Copmile the test programs. (don't know a better way to do this)
-	$(CXX) $(CXXFLAGS) -o utestzeta0 utestzeta0.o $(LIB)
-	$(CXX) $(CXXFLAGS) -o vtestzeta0 vtestzeta0.o $(LIB)
-
+	#$(CXX) $(CXXFLAGS) -o utestzeta0 utestzeta0.o $(LIB)
+	#$(CXX) $(CXXFLAGS) -o vtestzeta0 vtestzeta0.o $(LIB)
 
 $(LIB): $(LIBOBJ)
 	@ar r $@ $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
-test:
-	./$(TARGET) 100
+test: #we run with 4 process, since i only have 4 cores.
+	@$(MPI) -np 8 $(TARGET) 100
 
-utest:
-	./utestzeta0
+atest: #run with: make NP="" N="" atest
+	@$(MPI) -np $(NP) $(TARGET) $(N)
 
-vtest:
-	./vtestzeta0	
+testm:
+	@$(MPI) -np $(NP) $(TARGET) 8
+	@$(MPI) -np $(NP) $(TARGET) 16
+	@$(MPI) -np $(NP) $(TARGET) 128
+	@$(MPI) -np $(NP) $(TARGET) 256
 
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0

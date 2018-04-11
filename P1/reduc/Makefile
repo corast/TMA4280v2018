@@ -1,5 +1,7 @@
-NAME=zeta0/Makefile #For debugging purposes
+NAME=reduc/Makefile #For debugging purposes
 CEXE:=.cpp
+MPI=mpirun
+
 SRC:=$(wildcard *$(CEXE)) #Collect all .cpp files.
 
 OBJS:=$(patsubst %$(CEXE),%.o, $(SRC)) #collect all object files
@@ -11,8 +13,8 @@ TARGET:=main
 #$(patsubst %$(CEXE),%,$(MAINSRC))
 LIB=libutils.a #library file containing all the compiled libraries dependensies.
 
-CXX:=g++
-#Use version c++11 to compile, for functionality like printf etc.
+CXX:=mpicxx
+#Use mpic++ compiler, version c++11 to compile, for functionality like printf etc.
 CXXFLAGS:= -std=c++11
 
 #LDFLAGS = -lGL -lglut -lpng -lz -lm
@@ -27,23 +29,20 @@ LIBOBJ=$(patsubst $(MAINOBJ),,$(OBJS))# all object file dependant on the library
 #default function running make.
 all: $(LIB) $(MAINOBJ)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAINOBJ) $(LIB)
-#Copmile the test programs. (don't know a better way to do this)
-	$(CXX) $(CXXFLAGS) -o utestzeta0 utestzeta0.o $(LIB)
-	$(CXX) $(CXXFLAGS) -o vtestzeta0 vtestzeta0.o $(LIB)
-
 
 $(LIB): $(LIBOBJ)
 	@ar r $@ $(LIBOBJ)
 
 #Try running the compiled target file with an parameter
-test:
-	./$(TARGET) 100
+test: #we run with 4 process, since i only have 4 cores.
+	$(MPI) -np 4 $(TARGET) 100 1 0
 
-utest:
-	./utestzeta0
+atest: #run with: make atest NP="" N="" M="" T="" # M: "0"=zeta, "1"=mach ; T:"0"=Allreduce, "1"=recursive-doubling.
+	$(MPI) -np $(NP) $(TARGET) $(N) $(M) $(T)
 
-vtest:
-	./vtestzeta0	
+testm: #our small scale study, we want to check the different results based on number of processes for the two reduce methods.
+	@$(MPI) -np $(NP) $(TARGET) $(N) $(M) 0
+	@$(MPI) -np $(NP) $(TARGET) $(N) $(M) 1
 
 clean:
 	$(RM) $(TARGET) $(OBJS) utestzeta0 vtestzeta0
