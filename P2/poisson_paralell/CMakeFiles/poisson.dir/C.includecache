@@ -1,0 +1,16 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/sondenge/git/TMA4280v2018/P2/poisson/poisson.c
+stdlib.h
+-
+stdio.h
+-
+math.h
+-
+
