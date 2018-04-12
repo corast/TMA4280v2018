@@ -35,6 +35,7 @@
 *.out
 *.app
 
-#CMakeFiles
-**/CMakeCache.txt
-**/MakeFile
+# CMakeFiles
+CMakeCache.txt
+MakeFile
+CMakeFiles
