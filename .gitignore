@@ -41,6 +41,7 @@ MakeFile
 CMakeFiles
 cmake_install.cmake
 **/CMakeFiles
+**/Makefile
 
 # poisson compiled files
 poisson
