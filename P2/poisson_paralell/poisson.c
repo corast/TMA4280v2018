@@ -51,6 +51,13 @@ int main(int argc, char **argv)
      *  - the mesh size is constant h = 1/n.
      */
     int n = atoi(argv[1]);
+
+     if( (n & (n - 1)) != 0 && n) { 
+        printf("the problem size must be a power of 2\n");
+        //MPI_Finalize();
+        return 0;
+    }
+
     int m = n - 1;
     real h = 1.0 / n;
 
