@@ -22,6 +22,9 @@
 typedef double real;
 typedef int bool;
 
+int numprocs, n, threads;
+int rank, size;
+
 // Function prototypes
 real *mk_1D_array(size_t n, bool zero);
 real **mk_2D_array(size_t n1, size_t n2, bool zero);
@@ -36,11 +39,11 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 3) {
         printf("Usage:\n");
         printf("  poisson n\n\n");
         printf("Arguments:\n");
-        printf("  n: the problem size (must be a power of 2)\n");
+        printf("  n: the problem size (must be a power of 2) numberofthreads:\n");
     }
 
     /*
@@ -50,14 +53,16 @@ int main(int argc, char **argv)
      *  - the number of degrees of freedom in each direction is m = n-1,
      *  - the mesh size is constant h = 1/n.
      */
-    int n = atoi(argv[1]);
+    
 
-     if( (n & (n - 1)) != 0 && n) { 
+    if( (n & (n - 1)) != 0 && n) { 
         printf("the problem size must be a power of 2\n");
-        //MPI_Finalize();
+        MPI_Finalize();
         return 0;
     }
-
+    int n = atoi(argv[1]);
+    //Assume the number of threads are an integer.
+    int threads = atoi(argv[2]);
     int m = n - 1;
     real h = 1.0 / n;
 
@@ -108,6 +113,7 @@ int main(int argc, char **argv)
      * of freedom, so it excludes the boundary (bug fixed by petterjf 2017).
      * 
      */
+    
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
