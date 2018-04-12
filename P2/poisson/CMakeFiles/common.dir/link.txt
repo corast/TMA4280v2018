@@ -1,2 +1,0 @@
-/share/apps/software/Compiler/GCCcore/6.4.0/binutils/2.28/bin/ar cr libcommon.a  CMakeFiles/common.dir/fst.f.o
-/share/apps/software/Compiler/GCCcore/6.4.0/binutils/2.28/bin/ranlib libcommon.a

@@ -1,3 +1,0 @@
-/home/sondenge/git/TMA4280v2018/P2/poisson/CMakeFiles/common.dir
-/home/sondenge/git/TMA4280v2018/P2/poisson/CMakeFiles/poisson.dir
-/home/sondenge/git/TMA4280v2018/P2/poisson/CMakeFiles/poisson-f.dir
