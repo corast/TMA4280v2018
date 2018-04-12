@@ -36,5 +36,5 @@
 *.app
 
 #CMakeFiles
-*/CMakeCache.txt
-*MakeFile
+**/CMakeCache.txt
+**/MakeFile
