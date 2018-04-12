@@ -1,0 +1,9 @@
+Delete CMakeCache.txt (Specified to the spefific folder).
+Run: CC=mpicc FC=mpif90 cmake . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx
+Run: make
+
+./poisson n 
+
+#DIV
+sudo apt-get install libopenmpi-dev
+sudo apt-get gmake
