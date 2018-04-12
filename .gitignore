@@ -39,4 +39,5 @@
 CMakeCache.txt
 MakeFile
 CMakeFiles
-.cmake
+cmake_install.cmake
+**/CMakeFiles
