@@ -22,8 +22,9 @@
 typedef double real;
 typedef int bool;
 
-int numprocs, n, threads;
+int numprocs, n, threads, myid;
 int rank, size;
+int time_start;
 
 // Function prototypes
 real *mk_1D_array(size_t n, bool zero);
@@ -36,6 +37,11 @@ real rhs(real x, real y);
 // mangling: if can differ with compilers.
 void fst_(real *v, int *n, real *w, int *nn);
 void fstinv_(real *v, int *n, real *w, int *nn);
+
+//debug functions.
+void printMatrix(real** matrix, int size, char* c);
+void printVector(real* vector, int size, char* c);
+//end debug functions.
 
 int main(int argc, char **argv)
 {
@@ -55,24 +61,37 @@ int main(int argc, char **argv)
      */
     
 
-    if( (n & (n - 1)) != 0 && n) { 
+    if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
         printf("the problem size must be a power of 2\n");
         MPI_Finalize();
         return 0;
     }
-    int n = atoi(argv[1]);
-    //Assume the number of threads are an integer.
-    int threads = atoi(argv[2]);
-    int m = n - 1;
-    real h = 1.0 / n;
+    int n = atoi(argv[1]); //Problem size 
+    //Assume the number of threads are an integer, not some char
+    int threads = atoi(argv[2]); //Get number of threads per process.
+    int m = n - 1; //Set degrees of freedom.
+    real h = 1.0 / n; //Set mesh size.
+
+    MPI_Init(&argc, &argv); //init MPI
+
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
+
+    if(myid == 0){
+        printf("Running with %d processes and %d threads on each\n",numprocs,threads);
+        time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
+    } 
+
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
      */
     real *grid = mk_1D_array(n+1, false);
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
     }
+    printVector(grid, n, "grid");
 
     /*
      * The diagonal of the eigenvalue matrix of T is set with the eigenvalues
@@ -80,9 +99,11 @@ int main(int argc, char **argv)
      * Note that the indexing starts from zero here, thus i+1.
      */
     real *diag = mk_1D_array(m, false);
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         diag[i] = 2.0 * (1.0 - cos((i+1) * PI / n));
     }
+    printVector(diag, m, "d1 line 103");
 
     /*
      * Allocate the matrices b and bt which will be used for storing value of
@@ -90,6 +111,7 @@ int main(int argc, char **argv)
      */
     real **b = mk_2D_array(m, m, false);
     real **bt = mk_2D_array(m, m, false);
+
 
     /*
      * This vector will holds coefficients of the Discrete Sine Transform (DST)
@@ -106,6 +128,7 @@ int main(int argc, char **argv)
      */
     int nn = 4 * n;
     real *z = mk_1D_array(nn, false);
+    printVector(z, nn,"z1 line 129");
 
     /*
      * Initialize the right hand side data for a given rhs function.
@@ -113,12 +136,14 @@ int main(int argc, char **argv)
      * of freedom, so it excludes the boundary (bug fixed by petterjf 2017).
      * 
      */
-    
+    #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads, 
+    //Paralellalize to use threads on nested loop as well.
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
         }
     }
+    printMatrix(b,m,"b1 line 142");
 
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
@@ -130,47 +155,65 @@ int main(int argc, char **argv)
      * In functions fst_ and fst_inv_ coefficients are written back to the input 
      * array (first argument) so that the initial values are overwritten.
      */
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fst_(b[i], &n, z, &nn);
     }
+    //printMatrix(b,m,"b2 line 159");
     transpose(bt, b, m);
+    //printMatrix(bt,m,"bt1 line 162");
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fstinv_(bt[i], &n, z, &nn);
     }
+    //printMatrix(bt,m,"bt2 line 166");
 
     /*
      * Solve Lambda * \tilde U = \tilde G (Chapter 9. page 101 step 2)
      */
+    #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads.
+    //collapse to run the nested loop with threads aswell. 
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
         }
     }
-
+    //printMatrix(bt,m,"bt3 line 177");
     /*
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
      */
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fst_(bt[i], &n, z, &nn);
     }
+    //printMatrix(bt,m,"bt4 line 186");
     transpose(b, bt, m);
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fstinv_(b[i], &n, z, &nn);
     }
+    //printMatrix(b,m,"b3 line 192");
 
     /*
      * Compute maximal value of solution for convergence analysis in L_\infty
      * norm.
      */
     double u_max = 0.0;
+    #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             u_max = u_max > b[i][j] ? u_max : b[i][j];
         }
     }
 
-    printf("u_max = %e\n", u_max);
+    if(myid == 0){//process zero should do the final calculation.
+        double duration  = MPI_Wtime() - time_start;
+        printf("duration = %f ms\n", duration*1000);
+        printf("u_max = %e\n", u_max);
+    }
 
+    
+    MPI_Finalize();
     return 0;
 }
 
@@ -238,4 +281,32 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero)
         ret[i] = ret[i-1] + n2;
     }
     return ret;
+}
+
+
+//Printout function, to debug and figure out what the code actualy does
+void printMatrix(real** matrix, int size, char* c){
+    if(myid != 0){
+        return;
+    }
+    printf("%s ->\n",c);
+    for (size_t i = 0; i < size; i++) {
+        for (size_t j = 0; j < size; j++) {
+            printf("%f ", matrix[i][j]);
+            //u_max = u_max > b[i][j] ? u_max : b[i][j];
+        }
+    printf("\n");
+    }
+}
+
+//Printout function, to debug and figure out what the code actualy does
+void printVector(real* vector, int size, char* c){ 
+    if(myid != 0){
+        return;
+    }
+    printf("%s ->\n",c);
+    for (size_t i = 0; i < size; i++) {
+        printf("%f ", vector[i]);
+    }
+    printf("\n");
 }
