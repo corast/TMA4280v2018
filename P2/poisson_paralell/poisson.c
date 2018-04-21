@@ -22,7 +22,8 @@
 typedef double real;
 typedef int bool;
 
-int numprocs, n, threads, myid;
+int myid = -1;
+int numprocs, n, threads;
 int rank, size;
 int time_start;
 
@@ -32,11 +33,14 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y);
 
+void transpose_paralell(real **bt, real **b, size_t m);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
 // mangling: if can differ with compilers.
 void fst_(real *v, int *n, real *w, int *nn);
 void fstinv_(real *v, int *n, real *w, int *nn);
+
+
 
 //debug functions.
 void printMatrix(real** matrix, int size, char* c);
@@ -47,9 +51,10 @@ int main(int argc, char **argv)
 {
     if (argc < 3) {
         printf("Usage:\n");
-        printf("  poisson n\n\n");
+        printf("  poisson n t\n\n");
         printf("Arguments:\n");
-        printf("  n: the problem size (must be a power of 2) numberofthreads:\n");
+        printf("  n: the problem size (must be a power of 2)\n");
+        printf(" t: the number of threads \n");
     }
 
     /*
@@ -60,13 +65,9 @@ int main(int argc, char **argv)
      *  - the mesh size is constant h = 1/n.
      */
     
-
-    if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
-        printf("the problem size must be a power of 2\n");
-        MPI_Finalize();
-        return 0;
-    }
     int n = atoi(argv[1]); //Problem size 
+
+    //int n = atoi(argv[1]); //Problem size 
     //Assume the number of threads are an integer, not some char
     int threads = atoi(argv[2]); //Get number of threads per process.
     int m = n - 1; //Set degrees of freedom.
@@ -76,6 +77,17 @@ int main(int argc, char **argv)
 
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
     MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
+
+    if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
+        if(myid == 0){//Dont want clutter from every process.
+            printf("the problem size must be a power of 2\n");
+        }
+        
+        if(myid != -1){
+            MPI_Finalize();
+        }
+        return 0;
+    }
 
     if(myid == 0){
         printf("Running with %d processes and %d threads on each\n",numprocs,threads);
@@ -91,7 +103,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
     }
-    printVector(grid, n, "grid");
+    //printVector(grid, n, "grid");
 
     /*
      * The diagonal of the eigenvalue matrix of T is set with the eigenvalues
@@ -103,7 +115,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         diag[i] = 2.0 * (1.0 - cos((i+1) * PI / n));
     }
-    printVector(diag, m, "d1 line 103");
+    //printVector(diag, m, "d1 line 103");
 
     /*
      * Allocate the matrices b and bt which will be used for storing value of
@@ -128,7 +140,7 @@ int main(int argc, char **argv)
      */
     int nn = 4 * n;
     real *z = mk_1D_array(nn, false);
-    printVector(z, nn,"z1 line 129");
+    //printVector(z, nn,"z1 line 129");
 
     /*
      * Initialize the right hand side data for a given rhs function.
@@ -143,7 +155,7 @@ int main(int argc, char **argv)
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
         }
     }
-    printMatrix(b,m,"b1 line 142");
+    //printMatrix(b,m,"b1 line 142");
 
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
@@ -193,7 +205,7 @@ int main(int argc, char **argv)
         fstinv_(b[i], &n, z, &nn);
     }
     //printMatrix(b,m,"b3 line 192");
-
+    //transpose_paralell(b,bt,m);
     /*
      * Compute maximal value of solution for convergence analysis in L_\infty
      * norm.
@@ -234,11 +246,34 @@ real rhs(real x, real y) {
 
 void transpose(real **bt, real **b, size_t m)
 {
+    printMatrix(b,m,"transpose b");
+
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             bt[i][j] = b[j][i];
         }
     }
+    printMatrix(bt,m,"transpose bt");
+}
+
+void transpose_paralell(real **bt, real **b, size_t m){
+    //m is the amount of data points this process should send.
+
+    if(myid == 0){
+        real *p = malloc(sizeof(real)*m);//sendbuffer testing
+        //loop tru the matrix
+        for(size_t i = 0; i<m; i++){
+            for(size_t j = 0; j<m; j++){
+                printf("%f ",**(b+j));
+            }
+            
+            //printf("%p ",**(b+i));
+            printf("\n");
+        }
+        //printf("\n%f ",**(b+m));
+        printf("\n");
+    }
+
 }
 
 /*
