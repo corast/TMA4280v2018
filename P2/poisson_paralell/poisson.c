@@ -8,7 +8,6 @@
  * Revised, October 2001
  * Revised by Eivind Fonn, February 2015
  */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -24,7 +23,6 @@ typedef int bool;
 
 int myid = -1;
 int numprocs, n, threads;
-int rank, size;
 int time_start;
 
 // Function prototypes
@@ -45,6 +43,7 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 //debug functions.
 void printMatrix(real** matrix, int size, char* c);
 void printVector(real* vector, int size, char* c);
+void printDebug(real** matrix, int size);
 //end debug functions.
 
 int main(int argc, char **argv)
@@ -67,17 +66,12 @@ int main(int argc, char **argv)
     
     int n = atoi(argv[1]); //Problem size 
 
-    //int n = atoi(argv[1]); //Problem size 
     //Assume the number of threads are an integer, not some char
     int threads = atoi(argv[2]); //Get number of threads per process.
     int m = n - 1; //Set degrees of freedom.
     real h = 1.0 / n; //Set mesh size.
 
-    MPI_Init(&argc, &argv); //init MPI
-
-    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
-    MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
-
+ 
     if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
         if(myid == 0){//Dont want clutter from every process.
             printf("the problem size must be a power of 2\n");
@@ -88,6 +82,12 @@ int main(int argc, char **argv)
         }
         return 0;
     }
+    
+    MPI_Init(&argc, &argv); //init MPI
+
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
+
 
     if(myid == 0){
         printf("Running with %d processes and %d threads on each\n",numprocs,threads);
@@ -179,6 +179,7 @@ int main(int argc, char **argv)
         fstinv_(bt[i], &n, z, &nn);
     }
     //printMatrix(bt,m,"bt2 line 166");
+    //done in O(n² log n)
 
     /*
      * Solve Lambda * \tilde U = \tilde G (Chapter 9. page 101 step 2)
@@ -190,6 +191,7 @@ int main(int argc, char **argv)
             bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
         }
     }
+    //done in O(n²)
     //printMatrix(bt,m,"bt3 line 177");
     /*
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
@@ -204,6 +206,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         fstinv_(b[i], &n, z, &nn);
     }
+    printDebug(bt,m);
     //printMatrix(b,m,"b3 line 192");
     //transpose_paralell(b,bt,m);
     /*
@@ -256,6 +259,30 @@ void transpose(real **bt, real **b, size_t m)
     printMatrix(bt,m,"transpose bt");
 }
 
+MPI_Datatype type_matrix;
+MPI_Datatype column;
+int *sendcounts;
+int *recvcounts;
+int *sdisplacements;
+int *recvdisplacements;
+
+
+void pack_data(size_t m){
+
+    //TODO: initialise the sndcount/recvcount and sendis,recdis integers.
+    //Which each prosess having n number of rows, or some extra depending on cleanly divide or not.
+    //Pack the data into custom datatypes for MPI, one column at a time. 
+    //We want every process to be responsible for one row at a time. 
+    MPI_Type_vector(m, 1, m, MPI_DOUBLE , &type_matrix);
+    MPI_Type_commit(&column);//commit the datatype
+    //lb = 0, extend = sizeof(double)
+    MPI_Type_create_resized(column, 0, sizeof(double),&type_matrix); //duplicates the matrix datatype and changes the upper bound, lower bound and extent.
+    MPI_Type_commit(&type_matrix); //commit the datatype
+
+
+}
+
+
 void transpose_paralell(real **bt, real **b, size_t m){
     //m is the amount of data points this process should send.
 
@@ -273,6 +300,8 @@ void transpose_paralell(real **bt, real **b, size_t m){
         //printf("\n%f ",**(b+m));
         printf("\n");
     }
+
+    MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
 
 }
 
@@ -344,4 +373,25 @@ void printVector(real* vector, int size, char* c){
         printf("%f ", vector[i]);
     }
     printf("\n");
+}
+
+void printDebug(real** matrix, int size){
+     if(myid != 0){
+        return;
+    }
+    printf("\n");
+    for(int i = 0; i<size; i++){
+        printf("%p ",matrix[i]);
+        //printf("%f ", **(matrix++));
+        printf("\n");
+    }
+    printf("\n%p",*matrix);
+    printf("\n%p",matrix++);
+    /*
+    printf(" 1 %p ",matrix[i]);
+        printf(" 2 %p ",matrix[0+1]);
+        printf(" 3 %p ", *matrix);
+        printf(" 4 %p ", *(matrix++));
+        printf("\n");
+    */
 }
