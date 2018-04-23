@@ -40,8 +40,11 @@ void transpose_paralell(real **bt, real **b, size_t m);
 void calculate_sendcounts(size_t m);
 void calculate_workingarea(size_t m);
 
+void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispls);
+void test_workdivision(size_t m);
+
 void pack_data(size_t m);
-tuple calculate_work(size_t rows);
+//tuple calculate_work(size_t rows);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
 // mangling: if can differ with compilers.
@@ -287,13 +290,10 @@ int *adderarray;
 int from, to;
 
 void calculate_sendcounts(size_t m){
-  
-
    /*   1 2 3
         1 2 3
         1 2 3
         numprocs = 2; then firste process need to send 0 rows, and process 1 send 1
-
    */   
     fromarray = (int*) malloc(numprocs*sizeof(int));
     toarray = (int*) malloc(numprocs*sizeof(int));
@@ -346,12 +346,13 @@ void calculate_workingarea(size_t m){
     printArray(recvcounts, numprocs, "recvcounts");
     printArray(sdisplacements, numprocs, "sdisplacements");
     printArray(recvdisplacements, numprocs, "recvdisplacements");
+    test_workdivision(m);
 }
 
-int *sendcounts;
-int *recvcounts;
-int *sdisplacements;
-int *recvdisplacements;
+int *sendcounts_2;
+int *recvcounts_2;
+int *sdisplacements_2;
+int *recvdisplacements_2;
 
 void test_workdivision(size_t m){
     //we know that every process has to send an equal amount of data(elemnts to every other process)
@@ -364,54 +365,50 @@ void test_workdivision(size_t m){
         If m < nprocs, then first m procs get to send one.(rest shouldnt do anything other than recieve)
         If m > nprocs, then we divide up the rows to m/nprocs each, and give the first extra rows to m%nprocs processes.
     */
-    tuple work = calculate_work(m);
-    int start = work.start;//std::get<0>(work);
-    int rows = work.end;//std::get<1>(work);
+    //tuple work = calculate_work(m);
+    //int start = work.start;//std::get<0>(work);
+    //int rows = work.end;//std::get<1>(work);
+    sendcounts_2 = (int*) malloc(numprocs*sizeof(int));
+    recvcounts_2 = (int*) calloc(numprocs,sizeof(int));
+    sdisplacements_2 = (int*) malloc(numprocs*sizeof(int));
+    recvdisplacements_2 = (int*) calloc(numprocs,sizeof(int));
 
-    int divide = m / numprocs;
-    int remaind = m % numprocs;
-    //check if remainder is empty
-    if(remaind == 0){//This can only mean that each process get an equal amount of rows.
-        for(int i = 0; i<numprocs; i++){//simplest case.
-            sendcounts[i] = divide*m;
-            sdisplacements[i] = myid*divide*m;
-
-            recvcounts[i] = divide;
-            recvdisplacements[i] = divide*myid;
-        }
-    }else{//we know that we have to divide some extra rows to the process.
-
+    fill_rec_recdiv(m, recvcounts_2, recvdisplacements_2, sendcounts_2, sdisplacements_2);
+    if(myid == 0){
+        printArray(recvcounts_2,numprocs, "revcounts_2");
+        printArray(recvdisplacements_2,numprocs, "revcountsdisplacements_2");  
     }
-
+    printArray(sendcounts_2, numprocs, "sendcounts_2");
+    printArray(sdisplacements_2, numprocs, "sdisplacements_2");
 }
 
-/* Return how many tasks a given process should do, an attept at load balancing 
-    Calculates recivebuffer and recievdisplacement buffer*/
-tuple calculate_work(size_t rows){
-    tuple work;
-      if(numprocs > rows){//special case we need to handle, if there are more processes than tasks
-        //e.g n=4 and np=8. the first 4 processes should get one task each, the rest 0.
-        if(rows > myid){ 
-            return work = (tuple){myid+1,1};// std::make_tuple(myid+1,1); //one task for first n processes.
-        }else{
-            return work = (tuple){0,0}; //std::make_tuple(0,0);//no work to be done
+void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispls){
+    //basicly use the same function as last project, to load balance the work, but we need to know everyones work.
+    int division = m/numprocs;
+    int remainder = m%numprocs;
+    for(int p = 0; p<numprocs; p++){//fill the array for each process.
+        if(numprocs >= m){ //we need to divide to the m first prosesse
+            if(p < m){ //give the first m processes a task
+                recvc[p] = 1;
+                recvdis[p] = p;
+            }
+        }else if(remainder != 0){
+            if(remainder > p){//first p processes are given one extra row to work with.
+                recvc[p] = division + 1; //we given extra rows
+                recvdis[p] = p*division + (p*1) ; //we need to offset with this extra row.
+            }else{//the processes that do not recieve extra work, should offset by one.
+                recvc[p] = division;
+                recvdis[p] = p*division + remainder; //we know that the previous processes recieved one extra task, 
+            }
         }
+        //Else this process have no rows to send.(handled in calloc)
+        //else should have all zeros as recvc[p] and recvdis[p]
     }
-    int division = rows/numprocs;
-    int remainder = rows%numprocs;
-    int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
-    int m = division; //minimum amount of work for each process.
-    if(remainder != 0){
-        if(remainder > myid){//We just give the first remainder processes one extra task.
-            m += 1; //add one extra task.
-            start += myid; //We need to shift start position by myid.
-            return work = (tuple){start, m};//std::make_tuple(start, m);
-        }else{
-            start += remainder; //We need to shift start position by remainder.
-            return work = (tuple){start, m};//std::make_tuple(start, m);
-        }
-    }else{//we can divide tasks cleanly
-        return work = (tuple){start, m};//std::make_tuple(start, m);
+    //cant update send and sdispls in the same loop, unless we are process 0.
+    for(int p = 0; p<numprocs; p++){
+        sendc[p] = recvc[myid]*m; //number of rows we are reponsible of * elements per row.
+        //TODO: need to hande when the number of elements to send ist the same as previous rows.
+        sdispls[p] = recvdis[myid]*m;
     }
 }
 
