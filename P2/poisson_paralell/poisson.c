@@ -25,6 +25,11 @@ int myid = -1;
 int numprocs, n, threads;
 int time_start;
 
+typedef struct {
+    int start; //from where to start from.
+    int end; //acutally represente number of rows.
+}tuple;
+
 // Function prototypes
 real *mk_1D_array(size_t n, bool zero);
 real **mk_2D_array(size_t n1, size_t n2, bool zero);
@@ -32,6 +37,11 @@ void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y);
 
 void transpose_paralell(real **bt, real **b, size_t m);
+void calculate_sendcounts(size_t m);
+void calculate_workingarea(size_t m);
+
+void pack_data(size_t m);
+tuple calculate_work(size_t rows);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
 // mangling: if can differ with compilers.
@@ -43,17 +53,31 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 //debug functions.
 void printMatrix(real** matrix, int size, char* c);
 void printVector(real* vector, int size, char* c);
+void printArray(int *array, int size, char* c);
 void printDebug(real** matrix, int size);
 //end debug functions.
 
+bool dbug = true;
+
+
+
 int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv); //init MPI
+
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
+    
     if (argc < 3) {
-        printf("Usage:\n");
-        printf("  poisson n t\n\n");
-        printf("Arguments:\n");
-        printf("  n: the problem size (must be a power of 2)\n");
-        printf(" t: the number of threads \n");
+        if(myid == 0){
+            printf("Usage:\n");
+            printf("  poisson n t\n\n");
+            printf("Arguments:\n");
+            printf(" n: the problem size (must be a power of 2)\n");
+            printf(" t: the number of threads \n");
+        }
+        MPI_Finalize();
+        return 0;
     }
 
     /*
@@ -73,24 +97,14 @@ int main(int argc, char **argv)
 
  
     if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
-        if(myid == 0){//Dont want clutter from every process.
-            printf("the problem size must be a power of 2\n");
-        }
-        
-        if(myid != -1){
-            MPI_Finalize();
-        }
+        printf("the problem size n must be a power of 2\n");
+    
+        MPI_Finalize();
         return 0;
     }
-    
-    MPI_Init(&argc, &argv); //init MPI
-
-    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
-    MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
-
 
     if(myid == 0){
-        printf("Running with %d processes and %d threads on each\n",numprocs,threads);
+        printf("Running with %d processes and %d threads on each process\n",numprocs,threads);
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     } 
 
@@ -157,6 +171,10 @@ int main(int argc, char **argv)
     }
     //printMatrix(b,m,"b1 line 142");
 
+    calculate_sendcounts(m);
+    calculate_workingarea(m);
+    pack_data(m);
+
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
      * Instead of using two matrix-matrix products the Discrete Sine Transform
@@ -172,7 +190,8 @@ int main(int argc, char **argv)
         fst_(b[i], &n, z, &nn);
     }
     //printMatrix(b,m,"b2 line 159");
-    transpose(bt, b, m);
+    transpose_paralell(bt,b,m);
+    //transpose(bt, b, m);
     //printMatrix(bt,m,"bt1 line 162");
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
@@ -206,7 +225,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         fstinv_(b[i], &n, z, &nn);
     }
-    printDebug(bt,m);
+    //printDebug(bt,m);
     //printMatrix(b,m,"b3 line 192");
     //transpose_paralell(b,bt,m);
     /*
@@ -249,43 +268,180 @@ real rhs(real x, real y) {
 
 void transpose(real **bt, real **b, size_t m)
 {
-    printMatrix(b,m,"transpose b");
+    //printMatrix(b,m,"transpose b");
 
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
             bt[i][j] = b[j][i];
         }
     }
-    printMatrix(bt,m,"transpose bt");
+    //printMatrix(bt,m,"transpose bt");
 }
 
 MPI_Datatype type_matrix;
 MPI_Datatype column;
+
+int *fromarray;
+int *toarray;
+int *adderarray;
+int from, to;
+
+void calculate_sendcounts(size_t m){
+  
+
+   /*   1 2 3
+        1 2 3
+        1 2 3
+        numprocs = 2; then firste process need to send 0 rows, and process 1 send 1
+
+   */   
+    fromarray = (int*) malloc(numprocs*sizeof(int));
+    toarray = (int*) malloc(numprocs*sizeof(int));
+    adderarray = (int*) malloc(numprocs*sizeof(int));
+    int divide = m / numprocs;
+    int remaind = m % numprocs;
+
+    /*fill the int arrays with numbers corresponding to number of rows to send etc.*/
+    for(int i = 0; i < numprocs; i++){
+        //i represente the process to send to.
+        int offset = i < remaind ? i : remaind;
+        adderarray[i] = i < remaind ? 1 : 0;
+        fromarray[i] = i*divide + offset;
+        toarray[i] = fromarray[i]+divide + adderarray[i];
+    }
+
+    from = fromarray[myid];
+    to = toarray[myid];
+    /*
+    printf("process %d \n",myid);
+    printArray(fromarray, numprocs, "fromarray");
+    printArray(toarray, numprocs, "toarray");
+    printArray(adderarray, numprocs, "adderarray");
+    */
+}
+
+int *sendcounts;
+int *recvcounts;
+int *sdisplacements;
+int *recvdisplacements;
+void calculate_workingarea(size_t m){
+    sendcounts = (int*) malloc(numprocs*sizeof(int));
+    recvcounts = (int*) malloc(numprocs*sizeof(int));
+    sdisplacements = (int*) malloc(numprocs*sizeof(int));
+    recvdisplacements = (int*) malloc(numprocs*sizeof(int));
+
+    for (int i = 0; i< numprocs; i++){
+        int nrows = toarray[myid] - fromarray[myid];
+
+        sendcounts[i] = nrows * m;
+        sdisplacements[i] = fromarray[myid]*m;
+
+        int nrowsrecv = toarray[i] - fromarray[i];
+        recvcounts[i] = nrowsrecv;
+        recvdisplacements[i] = fromarray[i];
+    }
+
+    printf("process %d \n",myid);
+    printArray(sendcounts, numprocs, "sendcount");
+    printArray(recvcounts, numprocs, "recvcounts");
+    printArray(sdisplacements, numprocs, "sdisplacements");
+    printArray(recvdisplacements, numprocs, "recvdisplacements");
+}
+
 int *sendcounts;
 int *recvcounts;
 int *sdisplacements;
 int *recvdisplacements;
 
+void test_workdivision(size_t m){
+    //we know that every process has to send an equal amount of data(elemnts to every other process)
+
+    //we know that the send displacement is the id*(numelements/divide)
+
+    //first we calculate how many rows each process should be responsible for.
+    /*
+        If m = nprocs, then nrows = 1.
+        If m < nprocs, then first m procs get to send one.(rest shouldnt do anything other than recieve)
+        If m > nprocs, then we divide up the rows to m/nprocs each, and give the first extra rows to m%nprocs processes.
+    */
+    tuple work = calculate_work(m);
+    int start = work.start;//std::get<0>(work);
+    int rows = work.end;//std::get<1>(work);
+
+    int divide = m / numprocs;
+    int remaind = m % numprocs;
+    //check if remainder is empty
+    if(remaind == 0){//This can only mean that each process get an equal amount of rows.
+        for(int i = 0; i<numprocs; i++){//simplest case.
+            sendcounts[i] = divide*m;
+            sdisplacements[i] = myid*divide*m;
+
+            recvcounts[i] = divide;
+            recvdisplacements[i] = divide*myid;
+        }
+    }else{//we know that we have to divide some extra rows to the process.
+
+    }
+
+}
+
+/* Return how many tasks a given process should do, an attept at load balancing 
+    Calculates recivebuffer and recievdisplacement buffer*/
+tuple calculate_work(size_t rows){
+    tuple work;
+      if(numprocs > rows){//special case we need to handle, if there are more processes than tasks
+        //e.g n=4 and np=8. the first 4 processes should get one task each, the rest 0.
+        if(rows > myid){ 
+            return work = (tuple){myid+1,1};// std::make_tuple(myid+1,1); //one task for first n processes.
+        }else{
+            return work = (tuple){0,0}; //std::make_tuple(0,0);//no work to be done
+        }
+    }
+    int division = rows/numprocs;
+    int remainder = rows%numprocs;
+    int start = myid*division + 1; //start position from the n tasks. Shift as needed to not overlap work area.
+    int m = division; //minimum amount of work for each process.
+    if(remainder != 0){
+        if(remainder > myid){//We just give the first remainder processes one extra task.
+            m += 1; //add one extra task.
+            start += myid; //We need to shift start position by myid.
+            return work = (tuple){start, m};//std::make_tuple(start, m);
+        }else{
+            start += remainder; //We need to shift start position by remainder.
+            return work = (tuple){start, m};//std::make_tuple(start, m);
+        }
+    }else{//we can divide tasks cleanly
+        return work = (tuple){start, m};//std::make_tuple(start, m);
+    }
+}
 
 void pack_data(size_t m){
 
     //TODO: initialise the sndcount/recvcount and sendis,recdis integers.
+
     //Which each prosess having n number of rows, or some extra depending on cleanly divide or not.
     //Pack the data into custom datatypes for MPI, one column at a time. 
     //We want every process to be responsible for one row at a time. 
-    MPI_Type_vector(m, 1, m, MPI_DOUBLE , &type_matrix);
+    // count = m, block_length = 1 (block per element), stride = m (how far to same element column in next row)
+    /*  count = 3, block_length = 1, stride = 3. 
+        a b c
+        a b c
+        a b c
+    */
+    MPI_Type_vector(m, 1, m, MPI_DOUBLE , &column);
     MPI_Type_commit(&column);//commit the datatype
     //lb = 0, extend = sizeof(double)
     MPI_Type_create_resized(column, 0, sizeof(double),&type_matrix); //duplicates the matrix datatype and changes the upper bound, lower bound and extent.
     MPI_Type_commit(&type_matrix); //commit the datatype
 
+    //TODO: free the datatype from memory when done.
 
 }
 
 
 void transpose_paralell(real **bt, real **b, size_t m){
     //m is the amount of data points this process should send.
-
+    /*
     if(myid == 0){
         real *p = malloc(sizeof(real)*m);//sendbuffer testing
         //loop tru the matrix
@@ -300,9 +456,12 @@ void transpose_paralell(real **bt, real **b, size_t m){
         //printf("\n%f ",**(b+m));
         printf("\n");
     }
-
+    */
+    printMatrix(b,m,"b");
+    //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
     MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
 
+    printMatrix(bt,m,"transpose b");
 }
 
 /*
@@ -371,6 +530,14 @@ void printVector(real* vector, int size, char* c){
     printf("%s ->\n",c);
     for (size_t i = 0; i < size; i++) {
         printf("%f ", vector[i]);
+    }
+    printf("\n");
+}
+
+void printArray(int *array, int size, char* c){
+    printf("%s ->\n",c);
+    for (size_t i = 0; i < size; i++) {
+        printf("%d ", array[i]);
     }
     printf("\n");
 }
