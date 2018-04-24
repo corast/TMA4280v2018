@@ -109,7 +109,6 @@ int main(int argc, char **argv)
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     } 
 
-
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
      */
