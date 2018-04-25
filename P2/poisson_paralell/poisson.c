@@ -31,6 +31,9 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y);
 
+real u(real x, real y);
+real f(real x, real y);
+
 void transpose_paralell(real **bt, real **b, size_t m);
 void calculate_sendcounts(size_t m);
 void calculate_workingarea(size_t m);
@@ -41,6 +44,9 @@ void divide_work(size_t m);
 
 void create_mpi_datatype(size_t m);
 void free_mpi_datatype();
+/*####Validation functions etc*/
+void findGlobalUmax(real **b, size_t m);
+
 //tuple calculate_work(size_t rows);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
@@ -115,6 +121,7 @@ int main(int argc, char **argv)
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
      */
+    int ngrid = n + 1;
     real *grid = mk_1D_array(n+1, false);
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < n+1; i++) {
@@ -260,7 +267,11 @@ int main(int argc, char **argv)
         printf("u_max = %e\n", u_max);
     }
 
+    //do some testing.
+    printMatrix(b, m, "U values");
+    printVector(grid,n+1, "grid");
 
+    findGlobalUmax(b,m);
 
     //free some memory.
     free_mpi_datatype();
@@ -517,4 +528,39 @@ real **createTransposeMatrix(size_t m){
     }
 
     return transposeMatrix;
+}
+
+/*####################################
+        Erroc checking functions.
+*/
+
+real u(real x, real y){
+    return sin(PI*x)*sin(2*PI*y);
+}
+
+real f(real x, real y){
+    return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
+}
+
+//we compare the points to the grid vector, since 
+void findError(){  
+
+}
+
+void findGlobalUmax(real **b, size_t m){
+    double u_max = 0.0;
+    double global_umax = 0.0;
+    #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads. 
+    for (size_t i = 0; i < m; i++) {
+        for (size_t j = 0; j < m; j++) {
+            u_max = u_max > b[i][j] ? u_max : b[i][j];
+        }
+    }
+    //need to MPI_reduce, with the max from every process of u_max.
+    MPI_Reduce(&u_max, &global_umax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    
+    if(myid == 0){
+        printf("global umax = %.15f\n", global_umax);
+    }
+
 }
