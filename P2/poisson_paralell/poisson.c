@@ -317,12 +317,15 @@ void divide_work(size_t m){
     recvdisplacements = (int*) calloc(numprocs,sizeof(int));
 
     fill_rec_recdiv(m, recvcounts, recvdisplacements, sendcounts, sdisplacements);
+
+    #if 0 //write the different buffers needed for MPI_alltoallv, for debugging.
     if(myid == 0){
-        //printArray(recvcounts_2,numprocs, "revcounts_2");
-        //printArray(recvdisplacements_2,numprocs, "revcountsdisplacements_2");  
+        printArray(recvcounts,numprocs, "revcounts");
+        printArray(recvdisplacements,numprocs, "revcountsdisplacements");  
     }
-    //printArray(sendcounts_2, numprocs, "sendcounts_2");
-    //printArray(sdisplacements_2, numprocs, "sdisplacements_2");
+    printArray(sendcounts, numprocs, "sendcounts");
+    printArray(sdisplacements, numprocs, "sdisplacements");
+    #endif
 }
 
 void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispls){
