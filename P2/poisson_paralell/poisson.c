@@ -50,10 +50,13 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 
 
 //debug functions.
+void testTranspose(real** start, real**end, size_t m);
+
 void printMatrix(real** matrix, int size, char* c);
 void printVector(real* vector, int size, char* c);
 void printArray(int *array, int size, char* c);
 void printDebug(real** matrix, int size);
+real **createTransposeMatrix(size_t m);
 //end debug functions.
 
 bool dbug = true;
@@ -96,7 +99,7 @@ int main(int argc, char **argv)
 
  
     if( (n & (n - 1)) != 0 && n) { //Check that the problem size is a power of 2.
-        if(myid == 0){
+        if(myid == 0){//remove clutter, don't want np outputs.
             printf("the problem size n must be a power of 2\n");
         }
     
@@ -117,7 +120,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
     }
-    //printVector(grid, n, "grid");
+    printVector(grid, n, "grid");
 
     /*
      * The diagonal of the eigenvalue matrix of T is set with the eigenvalues
@@ -193,7 +196,8 @@ int main(int argc, char **argv)
         fst_(b[i], &n, z, &nn);
     }
     //printMatrix(b,m,"b2 line 159");
-    transpose_paralell(bt,b,m);
+    //transpose(bt, b, m);
+    transpose_paralell(b,bt,m); //transpose in paralell b matrix and put in bt.
     //transpose(bt, b, m);
     //printMatrix(bt,m,"bt1 line 162");
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
@@ -223,7 +227,8 @@ int main(int argc, char **argv)
         fst_(bt[i], &n, z, &nn);
     }
     //printMatrix(bt,m,"bt4 line 186");
-    transpose_paralell(b, bt, m);
+    //transpose(b, bt, m);
+    transpose_paralell(bt, b, m); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fstinv_(b[i], &n, z, &nn);
@@ -241,11 +246,21 @@ int main(int argc, char **argv)
         }
     }
 
+    //transposeMatrix;
+    #if 0 //set to one for testing transposing one matrix, which is easy to vertify.
+    real** holderMatrix = mk_2D_array(m,m,true);
+    real** transposeMatrix = createTransposeMatrix(m);
+
+    testTranspose(transposeMatrix, holderMatrix, m);
+    #endif
+
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
         printf("duration = %f ms\n", duration*1000);
         printf("u_max = %e\n", u_max);
     }
+
+
 
     //free some memory.
     free_mpi_datatype();
@@ -360,16 +375,18 @@ void create_mpi_datatype(size_t m){//creat the custom datatypes for storing matr
 
 }
 
+
 void free_mpi_datatype(){ // Free the created types after use from memory from each process.
     MPI_Type_free(&column);
     MPI_Type_free(&type_matrix);
 }
 
 
-void transpose_paralell(real **bt, real **b, size_t m){
+void transpose_paralell(real **b, real **bt, size_t m){
     //m is the amount of data points this process should send.
     //printMatrix(b,m,"b");
     //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
+    //MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
     MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
 
     //printMatrix(bt,m,"transpose b");
@@ -409,7 +426,6 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero)
     else {
         ret[0] = (real *)malloc(n1 * n2 * sizeof(real));
     }
-    
     // 3
     for (size_t i = 1; i < n1; i++) {
         ret[i] = ret[i-1] + n2;
@@ -472,4 +488,30 @@ void printDebug(real** matrix, int size){
         printf(" 4 %p ", *(matrix++));
         printf("\n");
     */
+}
+
+void testTranspose(real** start, real** end, size_t m){
+    /* Test the transpose function, by transposing twice, if the resulting matrix is the same as the origin, we know it works. */
+    printMatrix(start, m, "before transpose");
+    transpose_paralell(start, end, m);
+    printMatrix(end, m, "after one transpose");
+    transpose_paralell(end, start, m);
+    printMatrix(start, m, "after two transposes");
+    //we want to check whether or not start is equal to start.
+}
+
+/* create a matrix where every column is the same and increasing for every column */
+real **createTransposeMatrix(size_t m){
+    //We create an unit matrix and transpose it.
+    //Simple test to check if our transpose is working correctly.
+
+    real **transposeMatrix = mk_2D_array(m, m, true);//instanceiate.
+
+    for(size_t i = 0; i < m; i++){
+        for(size_t j = 0; j < m; j++){
+            transposeMatrix[j][i] = i;
+        }
+    }
+
+    return transposeMatrix;
 }
