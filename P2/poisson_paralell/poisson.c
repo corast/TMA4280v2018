@@ -168,7 +168,14 @@ int main(int argc, char **argv)
      * reallocations at each function call.
      */
     int nn = 4 * n;
-    real *z = mk_1D_array(nn, false);
+    /*
+        We must give each tread their own z vector to work with. 
+    */
+    real *z[threads];
+    for(int i = 0; i < threads; i++){ 
+        z[i] = mk_1D_array(nn, false);
+    }
+    //real *z = mk_1D_array(nn, false);
     //printVector(z, nn,"z1 line 129");
 
     /*
@@ -204,14 +211,14 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
-        fst_(b[i], &n, z, &nn);
+        fst_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
 
     transpose_paralell(b,bt,m); //transpose b matrix and put into bt.
 
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
-        fstinv_(bt[i], &n, z, &nn);
+        fstinv_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     //done in O(n² log n)
 
@@ -232,12 +239,12 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
-        fst_(bt[i], &n, z, &nn);
+        fst_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     transpose_paralell(bt, b, m); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
-        fstinv_(b[i], &n, z, &nn);
+        fstinv_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
  
     /*
