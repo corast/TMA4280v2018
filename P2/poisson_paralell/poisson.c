@@ -46,7 +46,7 @@ void create_mpi_datatype(size_t m);
 void free_mpi_datatype();
 /*####Validation functions etc*/
 void findGlobalUmax(real **b, size_t m);
-
+void calcualteGlobalError(real **b, size_t m, real *grid);
 //tuple calculate_work(size_t rows);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
@@ -127,7 +127,6 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
     }
-    printVector(grid, n, "grid");
 
     /*
      * The diagonal of the eigenvalue matrix of T is set with the eigenvalues
@@ -204,7 +203,7 @@ int main(int argc, char **argv)
     }
     //printMatrix(b,m,"b2 line 159");
     //transpose(bt, b, m);
-    transpose_paralell(b,bt,m); //transpose in paralell b matrix and put in bt.
+    transpose_paralell(b,bt,m); //transpose b matrix and put in bt.
     //transpose(bt, b, m);
     //printMatrix(bt,m,"bt1 line 162");
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
@@ -254,7 +253,7 @@ int main(int argc, char **argv)
     }
 
     //transposeMatrix;
-    #if 0 //set to one for testing transposing one matrix, which is easy to vertify.
+    #if 1 //set to one for testing transposing one matrix, which is easy to vertify.
     real** holderMatrix = mk_2D_array(m,m,true);
     real** transposeMatrix = createTransposeMatrix(m);
 
@@ -267,11 +266,27 @@ int main(int argc, char **argv)
         printf("u_max = %e\n", u_max);
     }
 
-    //do some testing.
+    #if 0
+    real** transposeMatrix = createTransposeMatrix(m);
+
+    printMatrix(transposeMatrix,m, "Transpose matrix");
     printMatrix(b, m, "U values");
-    printVector(grid,n+1, "grid");
+    printVector(grid, m, "grid");
+
+    printf("Process %d \n",myid);
+    calcualteGlobalError(b,m,grid);
+    #endif
+
+    #if 0
+    //do some testing.
+    
+    //printVector(grid,n+1, "grid");
 
     findGlobalUmax(b,m);
+    if(myid == 0){
+    calcualteGlobalError(b, m, grid);
+    }
+    #endif
 
     //free some memory.
     free_mpi_datatype();
@@ -361,11 +376,10 @@ void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispl
         //Else this process have no rows to send.(handled in calloc)
         //else should have all zeros as recvc[p] and recvdis[p]
     }
-    //cant update send and sdispls in the same loop, unless we are process 0.
+    //cant update send and sdispls in the same loop, unless we are process 0. Cant be paralalized.
     for(int p = 0; p<numprocs; p++){
         sendc[p] = recvc[myid]*m; //number of rows we are reponsible of * elements per row.
-        //TODO: need to hande when the number of elements to send ist the same as previous rows.
-        sdispls[p] = recvdis[myid]*m;
+        sdispls[p] = recvdis[myid]*m; //number of rows we need to diplace * elements per row.
     }
 }
 
@@ -456,7 +470,7 @@ void printMatrix(real** matrix, int size, char* c){
     printf("%s ->\n",c);
     for (size_t i = 0; i < size; i++) {
         for (size_t j = 0; j < size; j++) {
-            printf("%f ", matrix[i][j]);
+            printf("%.0f ", matrix[i][j]);
             //u_max = u_max > b[i][j] ? u_max : b[i][j];
         }
     printf("\n");
@@ -523,7 +537,7 @@ real **createTransposeMatrix(size_t m){
 
     for(size_t i = 0; i < m; i++){
         for(size_t j = 0; j < m; j++){
-            transposeMatrix[j][i] = i;
+            transposeMatrix[i][j] = i;
         }
     }
 
@@ -561,6 +575,43 @@ void findGlobalUmax(real **b, size_t m){
     
     if(myid == 0){
         printf("global umax = %.15f\n", global_umax);
+    }
+
+}
+
+void calcualteGlobalError(real **b, size_t m, real *grid){ //we only need process 0 to do this calculation.
+//since we assume that the solution matrix from process 0 is an good estimate of the error.
+/*
+    b size mxm, grid (m+1)+1 [+ boundary]
+    Error is the exact solution at the grid positions
+    As x and y is a value between 0 and 1, we have to use the grid instead of index of array.
+    Using U from assignment paper as reference to grid points.
+        U       Grid (x)      Grid(y)   Grid = [0 1/4 2/4 3/4 1]
+    [a b c] [1/4 2/4 3/4] [1/4 1/4 1/4]
+    [d e f] [1/4 2/4 3/4] [2/4 2/4 2/4]
+    [g h i] [1/4 2/4 3/4] [3/4 3/4 3/4]
+*/  
+    double error = 0;
+    double global_error = 0.0;
+    real x;
+    real y;
+    //dont bother paralizing this one
+    //loop trou every row and every column.
+    for(size_t i = 0; i < m; i++){
+        for(size_t j = 0; j < m; j++){
+            x = grid[j+1];//see example grids
+            y = grid[i+1];
+            printf(" %f(%.3f,%.3f) ",b[i][j], x, y);
+            error += abs(b[i][j] - u(x, y));
+        }
+        printf("\n");
+    }
+
+    printf("P:%d Error calculated: %.15f \n", myid,error);
+
+    //method 2.
+    for(size_t i = 0; i < m; i++){
+
     }
 
 }
