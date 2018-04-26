@@ -275,7 +275,7 @@ int main(int argc, char **argv)
 
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
-        printf("thr_p: %d, np = %d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %8f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+        printf("thr_p: %d, np = %3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %8f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
     }
     
     //free some memory.
