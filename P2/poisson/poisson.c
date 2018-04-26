@@ -26,6 +26,8 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y);
 
+void printMatrix(real** matrix, int size, char* c);
+
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
 // mangling: if can differ with compilers.
@@ -131,7 +133,7 @@ int main(int argc, char **argv)
             bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
         }
     }
-
+  
     /*
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
      */
@@ -154,7 +156,8 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("u_max = %e\n", u_max);
+    printMatrix(b,m,"U");
+
 
     return 0;
 }
@@ -223,4 +226,17 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero)
         ret[i] = ret[i-1] + n2;
     }
     return ret;
+}
+
+
+//Printout function, to debug and figure out what the code actualy does
+void printMatrix(real** matrix, int size, char* c){
+    printf("%s ->\n",c);
+    for (size_t i = 0; i < size; i++) {
+        for (size_t j = 0; j < size; j++) {
+            printf("%f ", matrix[i][j]);
+            //u_max = u_max > b[i][j] ? u_max : b[i][j];
+        }
+    printf("\n");
+    }
 }
