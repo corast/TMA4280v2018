@@ -158,6 +158,7 @@ int main(int argc, char **argv)
 
     printMatrix(b,m,"U");
 
+    printf("u_max = %e\n", u_max);
 
     return 0;
 }
