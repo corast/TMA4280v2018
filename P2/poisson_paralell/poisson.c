@@ -29,7 +29,7 @@ int time_start;
 real *mk_1D_array(size_t n, bool zero);
 real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
-real rhs(real x, real y);
+real rhs(real x, real y, int mode);
 
 real u(real x, real y);
 real f(real x, real y);
@@ -45,8 +45,10 @@ void divide_work(size_t m);
 void create_mpi_datatype(size_t m);
 void free_mpi_datatype();
 /*####Validation functions etc*/
-void findGlobalUmax(real **b, size_t m);
-void calcualteGlobalError(real **b, size_t m, real *grid);
+double findGlobalUmax(real **b, size_t m);
+double calcualteGlobalError(real **b, size_t m, real *grid);
+
+void fillSolutionMatrix(real **U, real *grid ,size_t m);
 //tuple calculate_work(size_t rows);
 // Functions implemented in FORTRAN in fst.f and called from C.
 // The trailing underscore comes from a convention for symbol names, called name
@@ -58,15 +60,19 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 //debug functions.
 void testTranspose(real** start, real**end, size_t m);
 
-void printMatrix(real** matrix, int size, char* c);
+void printMatrix(real** matrix, size_t n, size_t m, char* c);
 void printVector(real* vector, int size, char* c);
 void printArray(int *array, int size, char* c);
-void printDebug(real** matrix, int size);
 real **createTransposeMatrix(size_t m);
 //end debug functions.
 
-bool dbug = true;
+int *sendcounts;
+int *recvcounts;
+int *sdisplacements;
+int *recvdisplacements;
 
+size_t start; //from what row we are responsible for handling the data.
+size_t end; //to what row we stop.
 
 
 int main(int argc, char **argv)
@@ -114,19 +120,19 @@ int main(int argc, char **argv)
     }
 
     if(myid == 0){
-        printf("Running with %d processes and %d threads on each process\n",numprocs,threads);
+        //printf("Running with %d processes and %d threads on each process\n",numprocs,threads);
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     } 
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
      */
-    int ngrid = n + 1;
     real *grid = mk_1D_array(n+1, false);
-    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
+    #pragma omp parallel for num_threads(threads)//Parellalize the code with threads.  Note: default shedule is static(each is given a fixed amount)
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
     }
+
 
     /*
      * The diagonal of the eigenvalue matrix of T is set with the eigenvalues
@@ -175,17 +181,16 @@ int main(int argc, char **argv)
     //Paralellalize to use threads on nested loop as well.
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
-            b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
+            b[i][j] = h * h * rhs(grid[i+1], grid[j+1],2);
         }
     }
 
     create_mpi_datatype(m);//create datatype 
 
     divide_work(m); //divide the work, filling the nececery arrays
-    
 
-    //calculate_sendcounts(m);
-    //calculate_workingarea(m);
+    start = recvdisplacements[myid]; //from what row we are responsible for calculating error etc.
+    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we stop.
 
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
@@ -201,16 +206,13 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         fst_(b[i], &n, z, &nn);
     }
-    //printMatrix(b,m,"b2 line 159");
-    //transpose(bt, b, m);
-    transpose_paralell(b,bt,m); //transpose b matrix and put in bt.
-    //transpose(bt, b, m);
-    //printMatrix(bt,m,"bt1 line 162");
+
+    transpose_paralell(b,bt,m); //transpose b matrix and put into bt.
+
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fstinv_(bt[i], &n, z, &nn);
     }
-    //printMatrix(bt,m,"bt2 line 166");
     //done in O(n² log n)
 
     /*
@@ -224,7 +226,7 @@ int main(int argc, char **argv)
         }
     }
     //done in O(n²)
-    //printMatrix(bt,m,"bt3 line 177");
+
     /*
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
      */
@@ -232,8 +234,6 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         fst_(bt[i], &n, z, &nn);
     }
-    //printMatrix(bt,m,"bt4 line 186");
-    //transpose(b, bt, m);
     transpose_paralell(bt, b, m); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
@@ -241,53 +241,36 @@ int main(int argc, char **argv)
     }
  
     /*
-     * Compute maximal value of solution for convergence analysis in L_\infty
-     * norm.
+     * Compute maximal value of solution for convergence analysis 
      */
-    double u_max = 0.0;
-    #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
-        for (size_t j = 0; j < m; j++) {
-            u_max = u_max > b[i][j] ? u_max : b[i][j];
-        }
-    }
+    double global_umax = findGlobalUmax(b,m);
 
-    //transposeMatrix;
-    #if 1 //set to one for testing transposing one matrix, which is easy to vertify.
+    //calculate error
+    double global_error = calcualteGlobalError(b,m,grid);
+
+    #if 0 //set to one for testing transposing one matrix, which is easy to vertify by eye. 
     real** holderMatrix = mk_2D_array(m,m,true);
     real** transposeMatrix = createTransposeMatrix(m);
 
     testTranspose(transposeMatrix, holderMatrix, m);
     #endif
 
+    #if 0 //adjust to 1 to print b and solution matrix.
+    printMatrix(b,m,m,"U");
+    /*
+     * Solution matrix, to compare the values.
+     */
+    real **solU = mk_2D_array(m,m, false); 
+    fillSolutionMatrix(solU,grid , m);
+    printMatrix(solU,m,m, "solutions U");
+    #endif
+
+
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
-        printf("duration = %f ms\n", duration*1000);
-        printf("u_max = %e\n", u_max);
+        printf("k = 2, np = %d ,n = %d ,duration = %f ms, u_max = %f, error_max = %f \n",numprocs, n ,duration*1000, global_umax, global_error);
     }
-
-    #if 0
-    real** transposeMatrix = createTransposeMatrix(m);
-
-    printMatrix(transposeMatrix,m, "Transpose matrix");
-    printMatrix(b, m, "U values");
-    printVector(grid, m, "grid");
-
-    printf("Process %d \n",myid);
-    calcualteGlobalError(b,m,grid);
-    #endif
-
-    #if 0
-    //do some testing.
     
-    //printVector(grid,n+1, "grid");
-
-    findGlobalUmax(b,m);
-    if(myid == 0){
-    calcualteGlobalError(b, m, grid);
-    }
-    #endif
-
     //free some memory.
     free_mpi_datatype();
 
@@ -300,8 +283,21 @@ int main(int argc, char **argv)
  * Other functions can be defined to swtich between problem definitions.
  */
 
-real rhs(real x, real y) {
-    return 2 * (y - y*y + x - x*x);
+real rhs(real x, real y, int mode) {
+    switch(mode){
+        case 0:{
+            return 2 * (y - y*y + x - x*x);
+        }break;
+        case 1:{
+            return 1;
+        }break;
+        case 2:{ //to test our solution with an exact amount.
+            return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
+        }
+        default:
+            return 2 * (y - y*y + x - x*x);
+    }
+    
 }
 
 /*
@@ -322,10 +318,7 @@ void transpose(real **bt, real **b, size_t m)
     //printMatrix(bt,m,"transpose bt");
 }
 
-int *sendcounts;
-int *recvcounts;
-int *sdisplacements;
-int *recvdisplacements;
+
 
 void divide_work(size_t m){
     //we know that every process has to send an equal amount of data(elemnts to every other process)
@@ -372,6 +365,9 @@ void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispl
                 recvc[p] = division;
                 recvdis[p] = p*division + remainder; //we know that the previous processes recieved one extra task, 
             }
+        }else{ //we know that each prosess has an equal amount of rows.
+            recvc[p] = division;
+            recvdis[p] = p*division;
         }
         //Else this process have no rows to send.(handled in calloc)
         //else should have all zeros as recvc[p] and recvdis[p]
@@ -400,7 +396,6 @@ void create_mpi_datatype(size_t m){//creat the custom datatypes for storing matr
     //lb = 0, extend = sizeof(double)
     MPI_Type_create_resized(column, 0, sizeof(double),&type_matrix); //duplicates the matrix datatype and changes the upper bound, lower bound and extent.
     MPI_Type_commit(&type_matrix); //commit the datatype
-
 }
 
 
@@ -412,12 +407,8 @@ void free_mpi_datatype(){ // Free the created types after use from memory from e
 
 void transpose_paralell(real **b, real **bt, size_t m){
     //m is the amount of data points this process should send.
-    //printMatrix(b,m,"b");
     //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
-    //MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
     MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
-
-    //printMatrix(bt,m,"transpose b");
 }
 
 /*
@@ -463,14 +454,14 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero)
 
 
 //Printout function, to debug and figure out what the code actualy does
-void printMatrix(real** matrix, int size, char* c){
+void printMatrix(real** matrix, size_t n, size_t m, char* c){
     if(myid != 0){
         return;
     }
     printf("%s ->\n",c);
-    for (size_t i = 0; i < size; i++) {
-        for (size_t j = 0; j < size; j++) {
-            printf("%.0f ", matrix[i][j]);
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < m; j++) {
+            printf("%f ", matrix[i][j]);
             //u_max = u_max > b[i][j] ? u_max : b[i][j];
         }
     printf("\n");
@@ -497,34 +488,13 @@ void printArray(int *array, int size, char* c){
     printf("\n");
 }
 
-void printDebug(real** matrix, int size){
-     if(myid != 0){
-        return;
-    }
-    printf("\n");
-    for(int i = 0; i<size; i++){
-        printf("%p ",matrix[i]);
-        //printf("%f ", **(matrix++));
-        printf("\n");
-    }
-    printf("\n%p",*matrix);
-    printf("\n%p",matrix++);
-    /*
-    printf(" 1 %p ",matrix[i]);
-        printf(" 2 %p ",matrix[0+1]);
-        printf(" 3 %p ", *matrix);
-        printf(" 4 %p ", *(matrix++));
-        printf("\n");
-    */
-}
-
 void testTranspose(real** start, real** end, size_t m){
     /* Test the transpose function, by transposing twice, if the resulting matrix is the same as the origin, we know it works. */
-    printMatrix(start, m, "before transpose");
+    printMatrix(start, m, m,"before transpose");
     transpose_paralell(start, end, m);
-    printMatrix(end, m, "after one transpose");
+    printMatrix(end, m,m, "after one transpose");
     transpose_paralell(end, start, m);
-    printMatrix(start, m, "after two transposes");
+    printMatrix(start, m,m, "after two transposes");
     //we want to check whether or not start is equal to start.
 }
 
@@ -556,62 +526,71 @@ real f(real x, real y){
     return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
 }
 
+void fillSolutionMatrix(real **U, real *grid ,size_t m){
+    real x,y;
+    for(int i = 0; i<m; i ++){
+        for(int j = 0; j<m; j++){
+            x = grid[i+1];
+            y = grid[j+1];
+            U[i][j] = u(x,y);
+
+        }
+    }
+
+}
+
 //we compare the points to the grid vector, since 
 void findError(){  
 
 }
 
-void findGlobalUmax(real **b, size_t m){
+double findGlobalUmax(real **b, size_t m){
+    //each process find their u_max value and send to process 0. log2(p) time.
     double u_max = 0.0;
     double global_umax = 0.0;
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         for (size_t j = 0; j < m; j++) {
             u_max = u_max > b[i][j] ? u_max : b[i][j];
         }
     }
     //need to MPI_reduce, with the max from every process of u_max.
     MPI_Reduce(&u_max, &global_umax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-    
-    if(myid == 0){
-        printf("global umax = %.15f\n", global_umax);
-    }
+
+    return global_umax;
 
 }
 
-void calcualteGlobalError(real **b, size_t m, real *grid){ //we only need process 0 to do this calculation.
+double calcualteGlobalError(real **b, size_t m, real *grid){ //we only need process 0 to do this calculation.
 //since we assume that the solution matrix from process 0 is an good estimate of the error.
 /*
     b size mxm, grid (m+1)+1 [+ boundary]
     Error is the exact solution at the grid positions
     As x and y is a value between 0 and 1, we have to use the grid instead of index of array.
     Using U from assignment paper as reference to grid points.
-        U       Grid (x)      Grid(y)   Grid = [0 1/4 2/4 3/4 1]
-    [a b c] [1/4 2/4 3/4] [1/4 1/4 1/4]
-    [d e f] [1/4 2/4 3/4] [2/4 2/4 2/4]
-    [g h i] [1/4 2/4 3/4] [3/4 3/4 3/4]
+        U       Grid (x)      Grid(y)   Grid = [0 1/4 2/4 3/4 1] Column_major.
+    [a b c] [1/4 1/4 1/4] [1/4 2/4 3/4]
+    [d e f] [2/4 2/4 2/4] [1/4 2/4 3/4]
+    [g h i] [3/4 3/4 3/4] [1/4 2/4 3/4]
 */  
     double error = 0;
     double global_error = 0.0;
     real x;
     real y;
+    double local_error = 0;
     //dont bother paralizing this one
     //loop trou every row and every column.
-    for(size_t i = 0; i < m; i++){
+    for(size_t i = start; i < end; i++){
         for(size_t j = 0; j < m; j++){
-            x = grid[j+1];//see example grids
-            y = grid[i+1];
-            printf(" %f(%.3f,%.3f) ",b[i][j], x, y);
-            error += abs(b[i][j] - u(x, y));
+            x = grid[i+1];//see example grids
+            y = grid[j+1];
+            local_error = fabs(u(x, y) - b[i][j]);
+            error = error > local_error ?  error :  local_error; //update the error with the highest number.
         }
-        printf("\n");
     }
 
-    printf("P:%d Error calculated: %.15f \n", myid,error);
+    //need to MPI_reduce, with the max from every process of u_max.
+    MPI_Reduce(&error, &global_error, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
-    //method 2.
-    for(size_t i = 0; i < m; i++){
-
-    }
-
+    return global_error;
 }
