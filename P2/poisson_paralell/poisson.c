@@ -74,6 +74,11 @@ int *recvdisplacements;
 size_t start; //from what row we are responsible for handling the data.
 size_t end; //to what row we stop.
 
+int mode = 2;
+
+//used as sendtype in MPI_Alltoallv, gives us the ability to send whole matrix.
+MPI_Datatype type_matrix;
+MPI_Datatype column;
 
 int main(int argc, char **argv)
 {
@@ -153,7 +158,6 @@ int main(int argc, char **argv)
     real **b = mk_2D_array(m, m, false);
     real **bt = mk_2D_array(m, m, false);
 
-
     /*
      * This vector will holds coefficients of the Discrete Sine Transform (DST)
      * but also of the Fast Fourier Transform used in the FORTRAN code.
@@ -188,7 +192,7 @@ int main(int argc, char **argv)
     //Paralellalize to use threads on nested loop as well.
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < m; j++) {
-            b[i][j] = h * h * rhs(grid[i+1], grid[j+1],2);
+            b[i][j] = h * h * rhs(grid[i+1], grid[j+1], mode);
         }
     }
 
@@ -196,8 +200,8 @@ int main(int argc, char **argv)
 
     divide_work(m); //divide the work, filling the nececery arrays
 
-    start = recvdisplacements[myid]; //from what row we are responsible for calculating error etc.
-    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we stop.
+    start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
+    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
 
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
@@ -304,29 +308,32 @@ real rhs(real x, real y, int mode) {
         default:
             return 2 * (y - y*y + x - x*x);
     }
-    
 }
 
-/*
- * Write the transpose of b a matrix of R^(m*m) in bt.
- * In parallel the function MPI_Alltoallv is used to map directly the entries
- * stored in the array to the block structure, using displacement arrays.
- */
-
-void transpose(real **bt, real **b, size_t m)
-{
-    //printMatrix(b,m,"transpose b");
-
-    for (size_t i = 0; i < m; i++) {
-        for (size_t j = 0; j < m; j++) {
-            bt[i][j] = b[j][i];
+real solution(real x, real y, int mode){
+    switch(mode){
+        case 0:{
+            return 1;
+        }
+        case 1:{
+            return 1;
+        }break;
+        case 2:{ //exact solution to the problem.
+            return sin(PI*x)*sin(2*PI*y);
         }
     }
-    //printMatrix(bt,m,"transpose bt");
 }
 
 
+void transpose_paralell(real **b, real **bt, size_t m){
+    //m is the amount of data points this process should send.
+    //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
+    MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
+}
 
+/*##############################
+    Dividing matrix functions
+################################*/
 void divide_work(size_t m){
     //we know that every process has to send an equal amount of data(elemnts to every other process)
 
@@ -386,9 +393,6 @@ void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispl
     }
 }
 
-MPI_Datatype type_matrix;
-MPI_Datatype column;
-
 void create_mpi_datatype(size_t m){//creat the custom datatypes for storing matrix as vectors, columwise.
     //Pack the data into custom datatypes for MPI, one column at a time. 
     //We want every process to be responsible for one row at a time. 
@@ -412,12 +416,9 @@ void free_mpi_datatype(){ // Free the created types after use from memory from e
 }
 
 
-void transpose_paralell(real **b, real **bt, size_t m){
-    //m is the amount of data points this process should send.
-    //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
-    MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
-}
-
+/*##########################
+     MK array functions
+############################*/
 /*
  * The allocation of a vectore of size n is done with just allocating an array.
  * The only thing to notice here is the use of calloc to zero the array.
@@ -459,6 +460,9 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero)
     return ret;
 }
 
+/*##########################
+        Print functions
+############################*/
 
 //Printout function, to debug and figure out what the code actualy does
 void printMatrix(real** matrix, size_t n, size_t m, char* c){
@@ -494,6 +498,9 @@ void printArray(int *array, int size, char* c){
     }
     printf("\n");
 }
+/*###########################
+    Debugging functions.
+#############################*/
 
 void testTranspose(real** start, real** end, size_t m){
     /* Test the transpose function, by transposing twice, if the resulting matrix is the same as the origin, we know it works. */
@@ -523,15 +530,7 @@ real **createTransposeMatrix(size_t m){
 
 /*####################################
         Erroc checking functions.
-*/
-
-real u(real x, real y){
-    return sin(PI*x)*sin(2*PI*y);
-}
-
-real f(real x, real y){
-    return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
-}
+######################################*/
 
 void fillSolutionMatrix(real **U, real *grid ,size_t m){
     real x,y;
@@ -539,24 +538,19 @@ void fillSolutionMatrix(real **U, real *grid ,size_t m){
         for(int j = 0; j<m; j++){
             x = grid[i+1];
             y = grid[j+1];
-            U[i][j] = u(x,y);
+            U[i][j] = solution(x, y, mode);
 
         }
     }
-
 }
 
-//we compare the points to the grid vector, since 
-void findError(){  
-
-}
 
 double findGlobalUmax(real **b, size_t m){
-    //each process find their u_max value and send to process 0. log2(p) time.
+    //each process find their u_max value and send to process 0. log2(p) time with one thread.
     double u_max = 0.0;
     double global_umax = 0.0;
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) { //each process only calculate their u_max from the assigned rows from the matrix.
         for (size_t j = 0; j < m; j++) {
             u_max = u_max > b[i][j] ? u_max : b[i][j];
         }
@@ -568,12 +562,8 @@ double findGlobalUmax(real **b, size_t m){
 
 }
 
-double calcualteGlobalError(real **b, size_t m, real *grid){ //we only need process 0 to do this calculation.
-//since we assume that the solution matrix from process 0 is an good estimate of the error.
-/*
-    b size mxm, grid (m+1)+1 [+ boundary]
-    Error is the exact solution at the grid positions
-    As x and y is a value between 0 and 1, we have to use the grid instead of index of array.
+double calcualteGlobalError(real **b, size_t m, real *grid){
+/*  As x and y is a value between 0 and 1, we have to use the grid instead of index of array.
     Using U from assignment paper as reference to grid points.
         U       Grid (x)      Grid(y)   Grid = [0 1/4 2/4 3/4 1] Column_major.
     [a b c] [1/4 1/4 1/4] [1/4 2/4 3/4]
@@ -585,13 +575,13 @@ double calcualteGlobalError(real **b, size_t m, real *grid){ //we only need proc
     real x;
     real y;
     double local_error = 0;
-    //dont bother paralizing this one
+    //dont bother paralizing this one with threads.
     //loop trou every row and every column.
-    for(size_t i = start; i < end; i++){
+    for(size_t i = start; i < end; i++){ //each process only calculate their max error from the assigned rows from the matrix.
         for(size_t j = 0; j < m; j++){
             x = grid[i+1];//see example grids
             y = grid[j+1];
-            local_error = fabs(u(x, y) - b[i][j]);
+            local_error = fabs(solution(x, y, mode) - b[i][j]);
             error = error > local_error ?  error :  local_error; //update the error with the highest number.
         }
     }
