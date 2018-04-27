@@ -23,7 +23,7 @@ typedef int bool;
 
 int myid = -1;
 int numprocs, n, threads;
-int time_start;
+double time_start;
 double time_divide_work;
 
 // Function prototypes
@@ -198,15 +198,19 @@ int main(int argc, char **argv)
     }
 
     create_mpi_datatype(m);//create datatype 
-
-    time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-    divide_work(m); //divide the work, filling the nececery arrays
+    if(myid == 0){
+        time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
+    }
     
+    divide_work(m); //divide the work, filling the nececery arrays
+
+    if(myid == 0){
+        time_divide_work = MPI_Wtime() - time_divide_work; //end time. 
+    }
     
     start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
     end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
-
-    time_divide_work = MPI_Wtime() - time_divide_work; //end time. 
+    
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
      * Instead of using two matrix-matrix products the Discrete Sine Transform
@@ -280,7 +284,7 @@ int main(int argc, char **argv)
     printMatrix(solU,m,m, "solutions U");
     #endif
     
-    #if 1 //question3-2
+    #if 0 //question3-2 calculate the time it takes to divide the work. should close to constant O(nprocs²), but too small to notice. 
     if(myid == 0){
         printf("np =%3d,myid = %d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, myid , m, time_divide_work*1000);
     }
@@ -295,8 +299,8 @@ int main(int argc, char **argv)
     }
     #endif
 
-    #if 0
-    if(myid == 0){//process zero should do the final calculation.
+    #if 1 //default printout
+    if(myid == 0){//process zero should do the final output
         double duration  = MPI_Wtime() - time_start;
         printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
     }
