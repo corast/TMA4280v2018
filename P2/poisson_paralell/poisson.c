@@ -25,6 +25,7 @@ int myid = -1;
 int numprocs, n, threads;
 double time_start;
 double time_divide_work;
+double time_mpi_v;
 
 // Function prototypes
 real *mk_1D_array(size_t n, bool zero);
@@ -225,9 +226,14 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < m; i++) {
         fst_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
+    if(myid == 0){
+        time_mpi_v = MPI_Wtime();
+    }
 
     transpose_paralell(b,bt,m); //transpose b matrix and put into bt.
-
+    if(myid == 0){
+        time_mpi_v = MPI_Wtime() - time_mpi_v;
+    }
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = 0; i < m; i++) {
         fstinv_(bt[i], &n, z[omp_get_thread_num()], &nn);
@@ -299,19 +305,24 @@ int main(int argc, char **argv)
     }
     #endif
 
-    #if 1 //default printout
+    #if 0 //default printout
     if(myid == 0){//process zero should do the final output
         double duration  = MPI_Wtime() - time_start;
         printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
     }
     #endif
     
+    if(myid == 0){
+        printf("duration MPI_v %8.2f ms \n", time_mpi_v*1000);
+    }
+
     //free some memory.
     free_mpi_datatype();
 
     MPI_Finalize();
     return 0;
 }
+
 
 /*
  * This function is used for initializing the right-hand side of the equation.
