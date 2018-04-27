@@ -283,7 +283,7 @@ int main(int argc, char **argv)
     
     #if 1 //question3-2
     if(myid == 0){
-        printf("np =%3d, m =%6d, work_divide_duration %8.2f ms \n",numprocs, m, time_divide_work*1000);
+        printf("np =%3d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, m, time_divide_work*1000);
     }
     #endif
 
