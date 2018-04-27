@@ -198,16 +198,15 @@ int main(int argc, char **argv)
     }
 
     create_mpi_datatype(m);//create datatype 
-    if(myid == 0){
-        time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-    }
+
+    time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     divide_work(m); //divide the work, filling the nececery arrays
-    if(myid == 0){
-        time_divide_work = MPI_Wtime() - time_divide_work;
-    }
+    
+    
     start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
     end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
 
+    time_divide_work = MPI_Wtime() - time_divide_work; //end time. 
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
      * Instead of using two matrix-matrix products the Discrete Sine Transform
@@ -283,7 +282,7 @@ int main(int argc, char **argv)
     
     #if 1 //question3-2
     if(myid == 0){
-        printf("np =%3d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, m, time_divide_work*1000);
+        printf("np =%3d,myid = %d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, myid , m, time_divide_work*1000);
     }
     #endif
 
