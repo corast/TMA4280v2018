@@ -24,6 +24,7 @@ typedef int bool;
 int myid = -1;
 int numprocs, n, threads;
 int time_start;
+double time_divide_work;
 
 // Function prototypes
 real *mk_1D_array(size_t n, bool zero);
@@ -197,9 +198,13 @@ int main(int argc, char **argv)
     }
 
     create_mpi_datatype(m);//create datatype 
-
+    if(myid == 0){
+        time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
+    }
     divide_work(m); //divide the work, filling the nececery arrays
-
+    if(myid == 0){
+        time_divide_work = MPI_Wtime() - time_divide_work;
+    }
     start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
     end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
 
@@ -275,12 +280,28 @@ int main(int argc, char **argv)
     fillSolutionMatrix(solU,grid , m);
     printMatrix(solU,m,m, "solutions U");
     #endif
+    
+    #if 1 //question3-2
+    if(myid == 0){
+        printf("np =%3d, m =%6d, work_divide_duration %8.2f ms \n",numprocs, m, time_divide_work*1000);
+    }
+    #endif
 
+    #if 0 //question 4
+    //we want to createa a csv file as output, which we can plot in python.
+    //we want to plot time against number of processes, treads is set to 1.
+    if(myid == 0){
+        double duration  = MPI_Wtime() - time_start;
+        printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+    }
+    #endif
 
+    #if 0
     if(myid == 0){//process zero should do the final calculation.
         double duration  = MPI_Wtime() - time_start;
-        printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %8f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+        printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
     }
+    #endif
     
     //free some memory.
     free_mpi_datatype();
