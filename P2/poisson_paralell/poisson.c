@@ -33,7 +33,9 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y, int mode);
 
-void transpose_paralell(real **bt, real **b, size_t m);
+void gatherMatrix(real **b, real **bt);
+
+void transpose_paralell(real **t, real **b);
 void calculate_sendcounts(size_t m);
 void calculate_workingarea(size_t m);
 
@@ -161,7 +163,7 @@ int main(int argc, char **argv)
      */
     real *diag = mk_1D_array(m, false);
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = 0; i < m; i++) {
         diag[i] = 2.0 * (1.0 - cos((i+1) * PI / n));
     }
     //printVector(diag, m, "d1 line 103");
@@ -230,7 +232,7 @@ int main(int argc, char **argv)
         time_mpi_v = MPI_Wtime();
     }
 
-    transpose_paralell(b,bt,m); //transpose b matrix and put into bt.
+    transpose_paralell(b,bt); //transpose b matrix and put into bt.
     if(myid == 0){
         time_mpi_v = MPI_Wtime() - time_mpi_v;
     }
@@ -259,7 +261,7 @@ int main(int argc, char **argv)
     for (size_t i = start; i < end; i++) {
         fst_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
-    transpose_paralell(bt, b, m); //transpose bt and put into b.
+    transpose_paralell(bt, b); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
     for (size_t i = start; i < end; i++) {
         fstinv_(b[i], &n, z[omp_get_thread_num()], &nn);
@@ -305,10 +307,15 @@ int main(int argc, char **argv)
     }
     #endif
 
+    //gatherMatrix(b,b);  
+    transpose_paralell(b,bt);
+    transpose_paralell(bt, b);  
+
     #if 1 //default printout
     if(myid == 0){//process zero should do the final output
         double duration  = MPI_Wtime() - time_start;
         printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+        //printMatrix(b,m,m,"solution matrix");
     }
     #endif
     
@@ -361,10 +368,17 @@ real solution(real x, real y, int mode){
 }
 
 
-void transpose_paralell(real **b, real **bt, size_t m){
+void transpose_paralell(real **b , real **bt){
     //m is the amount of data points this process should send.
     //Note, sending doubles, resulting in number of elements to send in sendcount ect, but receiving in matrix columns(rows)
     MPI_Alltoallv(b[0],sendcounts, sdisplacements, MPI_DOUBLE, bt[0], recvcounts, recvdisplacements, type_matrix, MPI_COMM_WORLD);
+}
+
+/*##########################
+    Send final matrix to everyone.
+*/
+void gatherMatrix(real **b, real **bt){
+    MPI_Allgatherv(b[0], sendcounts,  MPI_DOUBLE, bt[0] , recvcounts , recvdisplacements , type_matrix , MPI_COMM_WORLD);
 }
 
 /*##############################
@@ -547,9 +561,9 @@ void printTimeSinceStart(char *c, double time_s){
 void testTranspose(real** start, real** end, size_t m){
     /* Test the transpose function, by transposing twice, if the resulting matrix is the same as the origin, we know it works. */
     printMatrix(start, m, m,"before transpose");
-    transpose_paralell(start, end, m);
+    transpose_paralell(start, end);
     printMatrix(end, m,m, "after one transpose");
-    transpose_paralell(end, start, m);
+    transpose_paralell(end, start);
     printMatrix(start, m,m, "after two transposes");
     //we want to check whether or not start is equal to start.
 }
