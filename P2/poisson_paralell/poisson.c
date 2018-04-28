@@ -76,10 +76,13 @@ unsigned int start; //from what row we are responsible for handling the data.
 unsigned int end; //to what row we stop.
 
 int mode = 2;//what rhs we use, and corresonding u, if exists.
+int outputMode = 0; //default value. 
 
 //used as sendtype in MPI_Alltoallv, gives us the ability to send whole matrix.
 MPI_Datatype type_matrix;
 MPI_Datatype column;
+
+double duration;
 
 int main(int argc, char **argv)
 {
@@ -88,13 +91,14 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
     MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
     
-    if (argc < 3) {
+    if ( !(argc >= 2) ) {//check that the number of arguments is not smaller than 2. 
         if(myid == 0){
             printf("Usage:\n");
             printf("  poisson n t\n\n");
             printf("Arguments:\n");
-            printf(" n: the problem size (must be a power of 2)\n");
-            printf(" t: the number of threads \n");
+            printf("  n: the problem size (must be a power of 2)\n");
+            printf("  t: the number of threads \n");
+            printf("out: outputMode(optional) \n");
         }
         MPI_Finalize();
         return 0;
@@ -123,6 +127,11 @@ int main(int argc, char **argv)
     
         MPI_Finalize();
         return 0;
+    }
+
+    //check if we have an extra parameter
+    if(argc == 3){
+        outputMode = atoi(argv[3]); //get the mode specified.
     }
 
     if(myid == 0){
@@ -266,21 +275,59 @@ int main(int argc, char **argv)
     for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         fstinv_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
- 
-    /*
-     * calculate/compute maximum value in grid.
-     */
-    double global_umax = findGlobalUmax(b,m);
+    if(myid == 0){//process zero should do the final output
+        duration = MPI_Wtime() - time_start;
+    }
 
-    //calculate error of solution for convergence analysis 
-    double global_error = calcualteGlobalError(b,m,grid);
+    switch(outputMode){//switch between output cases, this way the job scripts can be reprodused without changing #if 0 blocks in code. 
+        case 0: //normal case, with error and u_max
+        {
+            /*
+            * calculate/compute maximum value in grid.
+            */
+            double global_umax = findGlobalUmax(b,m);
+            //calculate error of solution for convergence analysis 
+            double global_error = calcualteGlobalError(b,m,grid);
 
-    #if 0 //set to 1 for testing transposing one matrix, which is easy to vertify by eye. 
-    real** holderMatrix = mk_2D_array(m,m,true);
-    real** transposeMatrix = createTransposeMatrix(m);
+            if(myid == 0){//process zero should do the final output
+                printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+            }
+        }break;
+        case 22: //testing transposing one matrix, which is easy to vertify by eye. 
+        {   
+            if(!myid){
+                real** holderMatrix = mk_2D_array(m,m,true);
+                real** transposeMatrix = createTransposeMatrix(m);
+                testTranspose(transposeMatrix, holderMatrix, m);
+            }
+        }break;
+        case 40: //question3-2 calculate the time it takes to divide the work. should close to constant O(nprocs²), but too small to notice. 
+        {
+            if(myid == 0){
+                printf("np =%3d,myid = %d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, myid , m, time_divide_work*1000);
+            }
+        }break;
+        case 41: //question 4 create csv file with varied np.
+        {
+            if(!myid){
+                printf("%d;%.3f\n",numprocs,duration);
+            }
+        }break;
+        case 42: //question 4 create csv file with varied n² values.
+        {
+            if(!myid){
+                printf("%.3f;%d\n",duration, n);
+            }
+        }break;
+        default: //no error, just u_max
+        {
+            double global_umax = findGlobalUmax(b,m);
+            if(!myid){
+                printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f \n", threads, numprocs, n, duration*1000, global_umax);
+            }   
+        }
+    }
 
-    testTranspose(transposeMatrix, holderMatrix, m);
-    #endif
 
     #if 0 //adjust to 1 to print b and solution matrix.
     printMatrix(b,m,m,"U");
@@ -291,33 +338,10 @@ int main(int argc, char **argv)
     fillSolutionMatrix(solU,grid , m);
     printMatrix(solU,m,m, "solutions U");
     #endif
-    
-    #if 0 //question3-2 calculate the time it takes to divide the work. should close to constant O(nprocs²), but too small to notice. 
-    if(myid == 0){
-        printf("np =%3d,myid = %d, m =%6d, work_divide_duration %8.3f ms \n",numprocs, myid , m, time_divide_work*1000);
-    }
-    #endif
-
-    #if 1 //question 4
-    //we want to createa a csv file as output, which we can plot in python.
-    //we want to plot speedup with a fixed number of processes and different n² values.
-    if(myid == 0){
-        double duration  = MPI_Wtime() - time_start;
-        printf("%.3f;%d\n",duration, n);
-    }
-    #endif
 
     #if 0 //sending everyone the final matrix b. We know that everyone will have the final matrix with this. 
     //transpose_paralell(b,bt);
     //transpose_paralell(bt, b);  
-    #endif
-
-    #if 0 //default printout
-    if(myid == 0){//process zero should do the final output
-        double duration  = MPI_Wtime() - time_start;
-        printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
-        //printMatrix(b,m,m,"solution matrix");
-    }
     #endif
     
     #if 0
@@ -325,6 +349,7 @@ int main(int argc, char **argv)
         printf("duration MPI_v %8.2f ms \n", time_mpi_v*1000);
     }
     #endif
+
     //free some memory.
     free_mpi_datatype();
 
@@ -349,8 +374,10 @@ real rhs(real x, real y, int mode) {
         case 2:{ //to test our solution with an exact amount.
             return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
         }
-        default:
+        default:{
             return 2 * (y - y*y + x - x*x);
+        }
+            
     }
 }
 
