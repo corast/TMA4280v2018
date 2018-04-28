@@ -33,9 +33,6 @@ real **mk_2D_array(size_t n1, size_t n2, bool zero);
 void transpose(real **bt, real **b, size_t m);
 real rhs(real x, real y, int mode);
 
-real u(real x, real y);
-real f(real x, real y);
-
 void transpose_paralell(real **bt, real **b, size_t m);
 void calculate_sendcounts(size_t m);
 void calculate_workingarea(size_t m);
@@ -61,7 +58,7 @@ void fstinv_(real *v, int *n, real *w, int *nn);
 
 //debug functions.
 void testTranspose(real** start, real**end, size_t m);
-
+void printTimeSinceStart(char *c, double time_s);
 void printMatrix(real** matrix, size_t n, size_t m, char* c);
 void printVector(real* vector, int size, char* c);
 void printArray(int *array, int size, char* c);
@@ -73,8 +70,8 @@ int *recvcounts;
 int *sdisplacements;
 int *recvdisplacements;
 
-size_t start; //from what row we are responsible for handling the data.
-size_t end; //to what row we stop.
+unsigned int start; //from what row we are responsible for handling the data.
+unsigned int end; //to what row we stop.
 
 int mode = 2;
 
@@ -131,6 +128,22 @@ int main(int argc, char **argv)
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
     }
 
+    create_mpi_datatype(m);//create datatype 
+    if(myid == 0){
+        time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
+    }
+    
+    divide_work(m); //divide the work, filling the nececery arrays
+
+    if(myid == 0){
+        time_divide_work = MPI_Wtime() - time_divide_work; //end time. 
+    }
+    
+    start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
+    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
+    //printf("myid %d, start %u -> end %u \n", myid, start, end);
+
+
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
      */
@@ -148,7 +161,7 @@ int main(int argc, char **argv)
      */
     real *diag = mk_1D_array(m, false);
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         diag[i] = 2.0 * (1.0 - cos((i+1) * PI / n));
     }
     //printVector(diag, m, "d1 line 103");
@@ -175,7 +188,7 @@ int main(int argc, char **argv)
      */
     int nn = 4 * n;
     /*
-        We must give each tread their own z vector to work with. 
+        We must give each tread their own z vector to work with, otherwise they will overwrite eachothers work.
     */
     real *z[threads];
     for(int i = 0; i < threads; i++){ 
@@ -192,25 +205,11 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads, 
     //Paralellalize to use threads on nested loop as well.
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         for (size_t j = 0; j < m; j++) {
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1], mode);
         }
     }
-
-    create_mpi_datatype(m);//create datatype 
-    if(myid == 0){
-        time_divide_work =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-    }
-    
-    divide_work(m); //divide the work, filling the nececery arrays
-
-    if(myid == 0){
-        time_divide_work = MPI_Wtime() - time_divide_work; //end time. 
-    }
-    
-    start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
-    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
     
     /*
      * Compute \tilde G^T = S^-1 * (S * G)^T (Chapter 9. page 101 step 1)
@@ -222,8 +221,9 @@ int main(int argc, char **argv)
      * In functions fst_ and fst_inv_ coefficients are written back to the input 
      * array (first argument) so that the initial values are overwritten.
      */
+    //TODO: parelalize this with process instead.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         fst_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
     if(myid == 0){
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
         time_mpi_v = MPI_Wtime() - time_mpi_v;
     }
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         fstinv_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     //done in O(n² log n)
@@ -245,7 +245,7 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads.
     //collapse to run the nested loop with threads aswell. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         for (size_t j = 0; j < m; j++) {
             bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
         }
@@ -256,12 +256,12 @@ int main(int argc, char **argv)
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
      */
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         fst_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     transpose_paralell(bt, b, m); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = start; i < end; i++) {
         fstinv_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
  
@@ -533,6 +533,12 @@ void printArray(int *array, int size, char* c){
         printf("%d ", array[i]);
     }
     printf("\n");
+}
+
+void printTimeSinceStart(char *c, double time_s){
+    if(myid == 0){
+        printf("%s delay %8.2f",c, (MPI_Wtime() - time_s)*1000);
+    }
 }
 /*###########################
     Debugging functions.
