@@ -129,7 +129,7 @@ int main(int argc, char **argv)
     if(myid == 0){
         //printf("Running with %d processes and %d threads on each process\n",numprocs,threads);
         time_start =  MPI_Wtime(); //Initialize a time, to measure the duration of the processing time.
-    } 
+    }
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
@@ -266,14 +266,14 @@ int main(int argc, char **argv)
     }
  
     /*
-     * Compute maximal value of solution for convergence analysis 
+     * calculate/compute maximum value in grid.
      */
     double global_umax = findGlobalUmax(b,m);
 
-    //calculate error
+    //calculate error of solution for convergence analysis 
     double global_error = calcualteGlobalError(b,m,grid);
 
-    #if 0 //set to one for testing transposing one matrix, which is easy to vertify by eye. 
+    #if 0 //set to 1 for testing transposing one matrix, which is easy to vertify by eye. 
     real** holderMatrix = mk_2D_array(m,m,true);
     real** transposeMatrix = createTransposeMatrix(m);
 
@@ -305,17 +305,18 @@ int main(int argc, char **argv)
     }
     #endif
 
-    #if 0 //default printout
+    #if 1 //default printout
     if(myid == 0){//process zero should do the final output
         double duration  = MPI_Wtime() - time_start;
         printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
     }
     #endif
     
+    #if 0
     if(myid == 0){
         printf("duration MPI_v %8.2f ms \n", time_mpi_v*1000);
     }
-
+    #endif
     //free some memory.
     free_mpi_datatype();
 
