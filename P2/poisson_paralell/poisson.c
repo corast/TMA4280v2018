@@ -75,7 +75,7 @@ int *recvdisplacements;
 unsigned int start; //from what row we are responsible for handling the data.
 unsigned int end; //to what row we stop.
 
-int mode = 2;
+int mode = 2;//what rhs we use, and corresonding u, if exists.
 
 //used as sendtype in MPI_Alltoallv, gives us the ability to send whole matrix.
 MPI_Datatype type_matrix;
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads, 
     //Paralellalize to use threads on nested loop as well.
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         for (size_t j = 0; j < m; j++) {
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1], mode);
         }
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
      */
     //TODO: parelalize this with process instead.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         fst_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
     if(myid == 0){
@@ -237,7 +237,7 @@ int main(int argc, char **argv)
         time_mpi_v = MPI_Wtime() - time_mpi_v;
     }
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         fstinv_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     //done in O(n² log n)
@@ -247,9 +247,9 @@ int main(int argc, char **argv)
      */
     #pragma omp parallel for num_threads(threads) collapse(2)//Parellalize the code with threads.
     //collapse to run the nested loop with threads aswell. 
-    for (size_t i = start; i < end; i++) {
-        for (size_t j = 0; j < m; j++) {
-            bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
+    for (size_t i = start; i < end; i++) { //ittete tru rows in my working area.
+        for (size_t j = 0; j < m; j++) {//itterate tru every column.
+            bt[i][j] = bt[i][j] / (diag[i] + diag[j]); //need whole diagonal matrix, bc of this.
         }
     }
     //done in O(n²)
@@ -258,12 +258,12 @@ int main(int argc, char **argv)
      * Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
      */
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         fst_(bt[i], &n, z[omp_get_thread_num()], &nn);
     }
     transpose_paralell(bt, b); //transpose bt and put into b.
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads. 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         fstinv_(b[i], &n, z[omp_get_thread_num()], &nn);
     }
  
@@ -298,20 +298,21 @@ int main(int argc, char **argv)
     }
     #endif
 
-    #if 0 //question 4
+    #if 1 //question 4
     //we want to createa a csv file as output, which we can plot in python.
-    //we want to plot time against number of processes, treads is set to 1.
+    //we want to plot speedup with a fixed number of processes and different n² values.
     if(myid == 0){
         double duration  = MPI_Wtime() - time_start;
-        printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
+        printf("%.3f;%d\n",duration, n);
     }
     #endif
 
-    //gatherMatrix(b,b);  
+    #if 0 //sending everyone the final matrix b. We know that everyone will have the final matrix with this. 
     //transpose_paralell(b,bt);
     //transpose_paralell(bt, b);  
+    #endif
 
-    #if 1 //default printout
+    #if 0 //default printout
     if(myid == 0){//process zero should do the final output
         double duration  = MPI_Wtime() - time_start;
         printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
@@ -378,7 +379,7 @@ void transpose_paralell(real **b , real **bt){
     Send final matrix to everyone.
 */
 void gatherMatrix(real **b, real **bt){
-    MPI_Allgatherv(b[0], sendcounts,  MPI_DOUBLE, bt[0] , recvcounts , recvdisplacements , type_matrix , MPI_COMM_WORLD);
+    //MPI_Allgatherv(b[0], (int)sendcounts,  MPI_DOUBLE, bt[0] , recvcounts , recvdisplacements , type_matrix , MPI_COMM_WORLD);
 }
 
 /*##############################
