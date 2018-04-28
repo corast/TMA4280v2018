@@ -308,8 +308,8 @@ int main(int argc, char **argv)
     #endif
 
     //gatherMatrix(b,b);  
-    transpose_paralell(b,bt);
-    transpose_paralell(bt, b);  
+    //transpose_paralell(b,bt);
+    //transpose_paralell(bt, b);  
 
     #if 1 //default printout
     if(myid == 0){//process zero should do the final output
