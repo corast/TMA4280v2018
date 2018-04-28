@@ -91,7 +91,7 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);//Get the number of processors.
     MPI_Comm_rank(MPI_COMM_WORLD, &myid); //Get my rank(id)
     
-    if ( !(argc >= 2) ) {//check that the number of arguments is not smaller than 2. 
+    if ( argc < 3 ) {//check that the number of arguments is not smaller than 2. 
         if(myid == 0){
             printf("Usage:\n");
             printf("  poisson n t\n\n");
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
     }
 
     //check if we have an extra parameter
-    if(argc == 3){
+    if(argc == 4){
         outputMode = atoi(argv[3]); //get the mode specified.
     }
 
