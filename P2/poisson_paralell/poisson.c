@@ -75,8 +75,9 @@ int *recvdisplacements;
 unsigned int start; //from what row we are responsible for handling the data.
 unsigned int end; //to what row we stop.
 
-int mode = 2;//what rhs we use, and corresonding u, if exists.
+int rhsmode = 2;//what rhs we use, and corresonding u, if exists.
 int outputMode = 0; //default value. 
+real point1,point2; //the two points.
 
 //used as sendtype in MPI_Alltoallv, gives us the ability to send whole matrix.
 MPI_Datatype type_matrix;
@@ -130,9 +131,10 @@ int main(int argc, char **argv)
     }
 
     //check if we have an extra parameter
-    if(argc == 4){
+    if(argc >= 4){//get outputmode
         outputMode = atoi(argv[3]); //get the mode specified.
     }
+
 
     if(myid == 0){
         //printf("Running with %d processes and %d threads on each process\n",numprocs,threads);
@@ -151,9 +153,7 @@ int main(int argc, char **argv)
     }
     
     start = recvdisplacements[myid]; //from what row we are responsible for in the solution matrix b, calculating error etc.
-    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop.
-    //printf("myid %d, start %u -> end %u \n", myid, start, end);
-
+    end = recvdisplacements[myid]+recvcounts[myid]; //to what row we need stop
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
@@ -162,6 +162,14 @@ int main(int argc, char **argv)
     #pragma omp parallel for num_threads(threads)//Parellalize the code with threads.  Note: default shedule is static(each is given a fixed amount)
     for (size_t i = 0; i < n+1; i++) {
         grid[i] = i * h;
+    }
+    
+    if(argc == 5){//get rhsmode
+        rhsmode = atoi(argv[4]);
+        if(rhsmode == 5){ //question 5, the two points with -1 and 1.
+            point1 = grid[n/2]; //assume n != 0.
+            point2 = grid[m];      
+        }
     }
 
 
@@ -218,7 +226,7 @@ int main(int argc, char **argv)
     //Paralellalize to use threads on nested loop as well.
     for (size_t i = start; i < end; i++) {//ittete tru rows in my working area.
         for (size_t j = 0; j < m; j++) {
-            b[i][j] = h * h * rhs(grid[i+1], grid[j+1], mode);
+            b[i][j] = h * h * rhs(grid[i+1], grid[j+1], rhsmode);
         }
     }
     
@@ -293,6 +301,7 @@ int main(int argc, char **argv)
                 printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f, error_max = %15.15f \n", threads, numprocs, n, duration*1000, global_umax, global_error);
             }
         }break;
+
         case 22: //testing transposing one matrix, which is easy to vertify by eye. 
         {   
             if(!myid){
@@ -319,6 +328,8 @@ int main(int argc, char **argv)
                 printf("%.3f;%d\n",duration, n);
             }
         }break;
+        case 4:
+        case 5:
         default: //no error, just u_max
         {
             double global_umax = findGlobalUmax(b,m);
@@ -363,16 +374,27 @@ int main(int argc, char **argv)
  * Other functions can be defined to swtich between problem definitions.
  */
 
-real rhs(real x, real y, int mode) {
+real rhs(real x, real y, int mode) {//TODO: clean
     switch(mode){
         case 0:{
             return 2 * (y - y*y + x - x*x);
-        }break;
+        }
         case 1:{
             return 1;
-        }break;
+        }
         case 2:{ //to test our solution with an exact amount.
             return 5*PI*PI*sin(PI*x)*sin(2*PI*y);
+        }
+        case 4:{ //question 5. Smooth function.
+            return exp(x)*sin(2*PI*x)*sin(2*PI*y);
+        }
+        case 5:{
+            if(x == point1 && y == point1){
+                return -1;
+            }else if(x == point2 && y == point2){
+                return 1;
+            }
+            return 0;
         }
         default:{
             return 2 * (y - y*y + x - x*x);
@@ -381,16 +403,19 @@ real rhs(real x, real y, int mode) {
     }
 }
 
-real solution(real x, real y, int mode){
+real solution(real x, real y, int mode){ //TODO: clean
     switch(mode){
         case 0:{
-            return 1;
+            return 0;
         }
         case 1:{
             return 1;
-        }break;
+        }
         case 2:{ //exact solution to the problem.
             return sin(PI*x)*sin(2*PI*y);
+        }
+        default:{
+            return 1;
         }
     }
 }
@@ -472,7 +497,7 @@ void fill_rec_recdiv(size_t m, int *recvc, int *recvdis, int *sendc, int *sdispl
 }
 
 void create_mpi_datatype(size_t m){//creat the custom datatypes for storing matrix as vectors, columwise.
-    //Pack the data into custom datatypes for MPI, one column at a time. 
+    //Pack the data into custom datatypes for MPI, one column at a time into custom matrix datatype
     //We want every process to be responsible for one row at a time. 
     // count = m, block_length = 1 (block per element), stride = m (how far to same element column in next row)
     /*  count = 3, block_length = 1, stride = 3. 
@@ -622,7 +647,7 @@ void fillSolutionMatrix(real **U, real *grid ,size_t m){
         for(int j = 0; j<m; j++){
             x = grid[i+1];
             y = grid[j+1];
-            U[i][j] = solution(x, y, mode);
+            U[i][j] = solution(x, y, rhsmode);
 
         }
     }
@@ -665,7 +690,7 @@ double calcualteGlobalError(real **b, size_t m, real *grid){
         for(size_t j = 0; j < m; j++){
             x = grid[i+1];//see example grids
             y = grid[j+1];
-            local_error = fabs(solution(x, y, mode) - b[i][j]);
+            local_error = fabs(solution(x, y, rhsmode) - b[i][j]);
             error = error > local_error ?  error :  local_error; //update the error with the highest number.
         }
     }

@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "system_error": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "array": "c",
+        "istream": "c",
+        "tuple": "c",
+        "utility": "c"
     }
 }
