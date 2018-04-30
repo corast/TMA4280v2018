@@ -350,9 +350,9 @@ int main(int argc, char **argv)
     printMatrix(solU,m,m, "solutions U");
     #endif
 
-    #if 0 //sending everyone the final matrix b. We know that everyone will have the final matrix with this. 
-    //transpose_paralell(b,bt);
-    //transpose_paralell(bt, b);  
+    #if 0 //sending everyone the final matrix b. We know that everyone will have the final matrix with this. Not optimal....
+    transpose_paralell(b, bt);
+    transpose_paralell(bt, b);  //need to transpose back
     #endif
     
     #if 0
@@ -668,7 +668,6 @@ double findGlobalUmax(real **b, size_t m){
     MPI_Reduce(&u_max, &global_umax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
     return global_umax;
-
 }
 
 double calcualteGlobalError(real **b, size_t m, real *grid){
