@@ -334,7 +334,7 @@ int main(int argc, char **argv)
         {
             double global_umax = findGlobalUmax(b,m);
             if(!myid){
-                printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8f \n", threads, numprocs, n, duration*1000, global_umax);
+                printf("thr_p:%3d, np =%3d, n =%6d, duration = %8.2f ms, u_max = %8.15f \n", threads, numprocs, n, duration*1000, global_umax);
             }   
         }
     }
