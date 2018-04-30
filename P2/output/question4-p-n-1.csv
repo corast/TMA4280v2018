@@ -1,0 +1,29 @@
+time;n
+0.000;1
+0.000;2
+0.000;4
+0.000;8
+0.001;16
+0.001;32
+0.003;64
+0.007;128
+0.035;256
+0.110;512
+0.424;1024
+1.688;2048
+6.994;4096
+29.963;8192
+slurmstepd: error: Job 7928 exceeded virtual memory limit (56391080 > 56320000), being killed
+slurmstepd: error: Exceeded job memory limit
+slurmstepd: error: *** JOB 7928 ON compute-1-0-1 CANCELLED AT 2018-04-29T16:01:11 ***
+--------------------------------------------------------------------------
+ORTE has lost communication with a remote daemon.
+
+  HNP daemon   : [[31054,0],0] on node compute-1-0-1
+  Remote daemon: [[31054,0],3] on node compute-1-0-4
+
+This is usually due to either a failure of the TCP network
+connection to the node, or possibly an internal failure of
+the daemon itself. We cannot recover from this failure, and
+therefore will terminate the job.
+--------------------------------------------------------------------------
